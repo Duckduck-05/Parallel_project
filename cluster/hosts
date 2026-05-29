@@ -1,0 +1,6 @@
+# hostfile cho OpenMPI - Task 4
+# slots = so process toi da chay tren may do (dat = so core cua VM).
+# Chay vi du:  mpirun --hostfile hosts -np 3 hostname
+node1 slots=2
+node2 slots=2
+node3 slots=2
