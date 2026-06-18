@@ -54,6 +54,7 @@ def main():
         # --- 1 thế hệ tiến hóa (giữ tinh hoa + tournament + OX + mutation) ---
         order = np.argsort(lengths)
         pop = [pop[i] for i in order]
+        lengths = [lengths[i] for i in order]
         new_pop = pop[:1]
         while len(new_pop) < args.pop:
             p1 = ga.tournament_select(pop, lengths, 5, rng)
@@ -77,8 +78,10 @@ def main():
             # gửi sang phải, nhận từ trái (Sendrecv = gửi+nhận đồng thời, tránh deadlock)
             incoming = comm.sendrecv(best_local.copy(), dest=right, source=left)
             worst = int(np.argmax(lengths))      # thay cá thể tệ nhất bằng khách di cư
-            pop[worst] = incoming
-            lengths[worst] = ga.tour_length(incoming, D)
+            incoming_len = ga.tour_length(incoming, D)
+            if incoming_len < lengths[worst]:
+                pop[worst] = incoming
+                lengths[worst] = incoming_len
 
         history.append(min(lengths))
 
