@@ -32,18 +32,43 @@ DATA = os.path.join(ROOT, "data")
 
 
 def make_cities(n, seed=1):
-    """Sinh file toa do n thanh pho (ngau nhien, on dinh theo seed)."""
+    """Sinh file toa do n thanh pho (ngau nhien, on dinh theo seed).
+    Tra ve duong dan TUONG DOI (data/cities_n.txt) de moi node tu giai duoc trong
+    ~/parallel-tsp cua minh (home khac nhau giua cac may)."""
     os.makedirs(DATA, exist_ok=True)
     path = os.path.join(DATA, f"cities_{n}.txt")
     if not os.path.exists(path):
         rng = np.random.default_rng(seed)
         pts = rng.uniform(0, 100, size=(n, 2))
         np.savetxt(path, pts, fmt="%.4f", header="x y (auto-generated)")
-    return path
+    return os.path.join("data", f"cities_{n}.txt")    # relative to ROOT / ~/parallel-tsp
+
+
+def _hosts(hostfile):
+    """Ten cac node trong hostfile (token dau moi dong, bo dong trong/#)."""
+    out = []
+    for line in open(hostfile):
+        line = line.strip()
+        if line and not line.startswith("#"):
+            out.append(line.split()[0])
+    return out
+
+
+def sync_data(cities, hostfile):
+    """Dong bo file thanh pho sang ~/parallel-tsp tren cac node tu xa (tru node1).
+    Moi node phai co cung file o cung duong dan tuong doi."""
+    src = os.path.join(ROOT, cities)
+    for h in _hosts(hostfile):
+        if h == "node1":
+            continue
+        subprocess.run(["rsync", "-az", src, f"{h}:parallel-tsp/{cities}"],
+                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def run(procs, cities, gens, pop, migrate, hostfile):
     """Chay 1 lan, tra ve (makespan, comm_avg, per_rank[list]). Doc tu --stats CSV."""
+    if hostfile:
+        sync_data(cities, hostfile)          # bao dam moi node co file thanh pho
     stats = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
     prog = ["python3", "python/tsp_island.py", cities,
             "--gens", str(gens), "--pop", str(pop), "--migrate", str(migrate),
