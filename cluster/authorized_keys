@@ -2,6 +2,9 @@
 # node run:  cat authorized_keys >> ~/.ssh/authorized_keys ; chmod 600 ~/.ssh/authorized_keys
 # One key per line. Add node1/2/4 keys as members send them.
 
+# node2 - Member 2 (node-duck)
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK0hZhoIQceFbNHzclJE9M0PHvk5ddD3lB3jS74E5S1K chuanhduc09@gmail.com
+
 # node1 - Leader (DESKTOP-9PH6P60)
 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC+M1NQFEtVe3wIbTKRxo9hna2aXPcwEklhuPMMNl+Dyy1eWUp1P3D564ynV8z/ERIM+0yIPR9vnDF8j1gEromBAL1Yjn8Fbrfw0o8A4Pd3ei64bDcc8UhUWt/p2637nXYqSp0zFhOttnsLrQKi2OTzQel4pya2ur79qwpgMFfkZn8/UqRxTz4T0oxnhTZdyFrzTTpY9poPHiZIZxKvkJ4MSStTY8OLWHvVODzUNnkOEoMzxzNn3tIXw/qir55Cb6VBJq79AoufZ9wytWPdlNhjs9Xt1AxvhXJAixXHm57S88u5vQ74OaRA2zUTjns7SsQtB0EDegzy+k5vwvdMOJTJCSwkpvq4d/C1X/RpMNfGg03kn+yGrvzzDiEoG4Qe8pmDpbcK5j1KMSXDSeZ/AVUibTr3Go0GC1ks44cHBgmBg1Gq6HSolVl1r/tS/XITj11L962BxcMNNAY/7lkbqrvClVgacViE3w5GTCywUKwDDvMPx+UQIwn+ZHRXD+Ns3BU= baolo@DESKTOP-9PH6P60
 

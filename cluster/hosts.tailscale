@@ -2,6 +2,6 @@
 # Paste these lines at the END of /etc/hosts on EVERY node (identical on all).
 # Fill node1/2/4 once those members send their `tailscale ip -4`.
 100.112.94.39   node1      # node-bao (Leader/launcher)
-# 100.x.x.x   node2
+100.97.106.69   node2      # node-duck (Member 2)
 100.114.226.96  node3      # mac-of-nituv (Member 3)
 100.124.102.116 node4      # node-khainx (Member 4)

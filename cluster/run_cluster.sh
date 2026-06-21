@@ -22,7 +22,6 @@ export PATH="/opt/openmpi-5.0.9/bin:$PATH"
 export LD_LIBRARY_PATH="/opt/openmpi-5.0.9/lib:${LD_LIBRARY_PATH:-}"
 
 LAUNCH_AGENT="/opt/openmpi-5.0.9/bin/prted"
-IFACE="tailscale0"
 
 HOSTFILE="${1:-cluster/hosts.cur}"
 NP="${2:-2}"
@@ -31,9 +30,10 @@ shift 2 2>/dev/null || true
 
 # Each rank cd's to its OWN ~/parallel-tsp first ($HOME expands per-node/per-user),
 # because mpirun starts remote ranks in $HOME, and homes differ across machines.
+# No interface pin: tailscale0 (Linux) vs utunN (mac) differ per node and OpenMPI's
+# default selection reaches the tailnet fine. Re-add --mca btl_tcp_if_include if a
+# node with multiple NICs picks the wrong route.
 exec mpirun \
   --prtemca prte_launch_agent "$LAUNCH_AGENT" \
-  --prtemca oob_tcp_if_include "$IFACE" \
-  --mca btl_tcp_if_include "$IFACE" \
   --hostfile "$HOSTFILE" -np "$NP" \
   bash -c 'cd "$HOME/parallel-tsp" && exec "$@"' _ "$@"

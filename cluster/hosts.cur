@@ -1,6 +1,6 @@
-# Current ONLINE cluster (node1 + node3 + node4). Member2 not joined yet.
-# Run:  mpirun --hostfile cluster/hosts.cur -np 3 hostname
-# Add 'node2 slots=2' here once member 2 joins.
+# Full cluster: node1 + node2 + node3 + node4 (all 4 members).
+# Run:  bash cluster/run_cluster.sh cluster/hosts.cur 4 hostname
 node1 slots=2
+node2 slots=2
 node3 slots=2
 node4 slots=2
