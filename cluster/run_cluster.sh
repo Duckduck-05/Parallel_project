@@ -33,10 +33,13 @@ shift 2 2>/dev/null || true
 # No interface pin: tailscale0 (Linux) vs utunN (mac) differ per node and OpenMPI's
 # default selection reaches the tailnet fine. Re-add --mca btl_tcp_if_include if a
 # node with multiple NICs picks the wrong route.
-# --map-by node: round-robin ranks across machines (one island per node first),
-# else mpirun packs a node's slots before moving on and you'd run all ranks locally.
+# --map-by seq + --bind-to none: assign ranks to hostfile nodes sequentially WITHOUT
+# requiring each node's hwloc topology. This is essential for HETEROGENEOUS nodes
+# (different CPU core counts) — the default topology-aware mapper drops any node whose
+# topology differs from the launcher's ("node X lacks topology") on this PRRTE build.
+# --bind-to none also avoids core-binding (which needs topology).
 exec mpirun \
   --prtemca prte_launch_agent "$LAUNCH_AGENT" \
-  --map-by node \
+  --map-by seq --bind-to none \
   --hostfile "$HOSTFILE" -np "$NP" \
   bash -c 'cd "$HOME/parallel-tsp" && exec "$@"' _ "$@"
