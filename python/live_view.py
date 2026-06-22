@@ -270,16 +270,17 @@ def cmd_race(args):
     lines = [ax.plot([], [], lw=1.1, alpha=0.75, label=f"island {i}", zorder=2)[0]
              for i in range(len(hs))]
     (gln,) = ax.plot([], [], lw=2.6, color="black", label="global best", zorder=5)
-    ax.set_xlim(0, G)
     # Zoom the y-axis to the convergence band (near the optimum) so the island spread and the
     # per-sync jumps are visible. The long descent from the random start enters from the top.
     bot = float(gbest.min())
     top = bot * args.zoom
     ax.set_ylim(bot - 0.04 * (top - bot), top)
+    # Start the x-axis where the islands enter the band, so the plot is not half empty.
+    start = int(np.argmax(gbest <= top)) if bool((gbest <= top).any()) else 0
+    ax.set_xlim(max(0, start - max(1, (G - start) // 20)), G)
     ax.legend(loc="upper right", fontsize=8, ncol=2)
 
     # Skip the long descent that happens above the zoom band so the animation is lively.
-    start = int(np.argmax(gbest <= top)) if bool((gbest <= top).any()) else 0
     nframes = (G - start + args.step - 1) // args.step
 
     def upd(f):
