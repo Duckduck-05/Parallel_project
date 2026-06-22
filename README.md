@@ -38,20 +38,68 @@ periodically:
 
 The final global best is gathered with `MPI_Allreduce(MINLOC)` and sent to rank 0.
 
-## Build
+## Setup - which environment, and when
 
-Requires OpenMPI (`mpicxx`) and a C++17 compiler.
+The solver is C++ + MPI, so it **builds and runs on Linux**. There are three setups; pick by
+what you are doing. Each lives in its own folder.
+
+| You want to...                         | Where                              | Setup files                          | Build / run with |
+|----------------------------------------|------------------------------------|--------------------------------------|------------------|
+| Develop / run on one machine           | A Linux box, or **WSL** on Windows | `cpp/Makefile`, `cpp/BUILD.txt`      | `cd cpp && make`, then `mpirun -np N ./cpp/tsp_island ...` |
+| Run the real multi-node experiments    | 4 Ubuntu nodes on a LAN            | `cluster/*.sh`, `cluster/hosts*`     | `cluster/01_install.sh` -> ... -> `cluster/run_cluster.sh` |
+| Only view results / demos / make plots | Any OS (Windows native is fine)    | `requirements.txt`                   | `pip install -r requirements.txt`, then `python3 python/...` |
+
+### 1. C++ build - the solver (`cpp/`)
+
+Needed everywhere the solver runs. Requires **OpenMPI (`mpicxx`) + a C++17 compiler**
+(`sudo apt install openmpi-bin libopenmpi-dev build-essential` on Ubuntu).
 
 ```bash
 cd cpp
 make            # builds tsp_island (MPI) + tsp_sequential (baseline)
 make test       # builds and runs the unit tests (no MPI needed)
+make clean
 ```
 
-If `mpicxx` is not on your PATH (e.g. a source build under /opt):
+If `mpicxx` is not on your PATH (e.g. a source build under `/opt`), point `CXX` at it:
 
 ```bash
 make CXX=/opt/openmpi-5.0.9/bin/mpicxx
+```
+
+See `cpp/BUILD.txt` for the manual one-off compile commands.
+
+### 2. Single machine / WSL (local development)
+
+- **Native Linux:** do the `cpp/` build above, then run with `mpirun --oversubscribe -np N ...`
+  (see [Run](#run)). `bash cluster/run_local.sh` builds + runs in one step.
+- **Windows:** the solver cannot build natively - use **WSL** (Ubuntu). Inside WSL it is just
+  a Linux box: install OpenMPI, build `cpp/`, run with `mpirun`. The repo is reachable at
+  `/mnt/c/...`. This machine's WSL already has OpenMPI **5.0.9** at `/opt/openmpi-5.0.9`, but
+  its system `mpicxx` wrapper is broken (no dev headers), so build and run with that prefix:
+  ```bash
+  export PATH=/opt/openmpi-5.0.9/bin:$PATH
+  export LD_LIBRARY_PATH=/opt/openmpi-5.0.9/lib
+  make -C cpp CXX=/opt/openmpi-5.0.9/bin/mpicxx
+  mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20
+  ```
+  (Note: WSL's `/tmp` is wiped between separate shell sessions - build and run in one shell.)
+- **Plotting on Windows** can run with native Python (e.g. Anaconda) instead of WSL - the GUI
+  window is more reliable than WSLg. `demo.bat` / `demo_parallel.bat` do exactly this: solver
+  in WSL, viewer in Windows Python.
+
+### 3. Cluster - 4 nodes (`cluster/`)
+
+For the real multi-node experiments. Full requirements + step-by-step are in
+[Cluster (4 nodes, LAN)](#cluster-4-nodes-lan) below. On the nodes themselves (Ubuntu) this is
+**native Linux - no WSL**; WSL is only the Windows-dev stand-in for a Linux box.
+
+### 4. Visualization deps - Python (`requirements.txt`)
+
+Only `numpy` + `matplotlib` (no `mpi4py` - Python never touches MPI here).
+
+```bash
+pip install -r requirements.txt
 ```
 
 ## Run
@@ -119,8 +167,9 @@ counts) work, and pins the launch agent so all nodes use the same OpenMPI build.
 
 ## Visualization & report figures (Python)
 
-Install the plotting dependencies once: `pip install -r requirements.txt` (numpy + matplotlib;
-**mpi4py is not needed**).
+Needs the plotting deps from [Setup step 4](#4-visualization-deps---python-requirementstxt)
+(`pip install -r requirements.txt`). All of these read files the C++ solver wrote, so they
+run anywhere - including native Windows Python.
 
 On Windows, double-click **`demo.bat`** for a one-click interactive demo: it builds + runs the
 C++ solver in WSL (streaming `--live`) and opens a native window that replays the search from
