@@ -17,6 +17,7 @@ cpp/test_local_search
 results/stream*.jsonl
 results/race*
 results/_*.png
+results/*.rank*.history
 *.tmp
 
 # Local-only docs (kept on disk, never pushed)
