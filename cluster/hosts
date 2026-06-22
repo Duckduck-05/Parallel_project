@@ -1,8 +1,10 @@
 # OpenMPI hostfile - 4 nodes.
-# slots = max processes to run on that machine (set it to the box's core count).
-# node1..node4 are resolved via /etc/hosts (see hosts.sample for the IP -> name map).
-# Run: mpirun --hostfile cluster/hosts -np 4 ./cpp/tsp_island data/cities_50.txt --sync 20
-node1 slots=2
-node2 slots=2
-node3 slots=2
-node4 slots=2
+# slots = max processes per machine. Capped to 12 on every node (the smallest node has 12
+# cores) so the cluster is HOMOGENEOUS: each rank gets its own physical core everywhere and
+# all ranks do equal work -> balanced makespan, comparable timing (clean speedup/granularity).
+# Total = 4 x 12 = 48 ranks. node1..node4 resolve via /etc/hosts (see hosts.sample).
+# Run: mpirun --hostfile cluster/hosts -np 48 ./cpp/tsp_island data/cities_1000.txt --sync 50
+node1 slots=12
+node2 slots=12
+node3 slots=12
+node4 slots=12
