@@ -86,4 +86,4 @@ they depend on no algorithm module.
   mapper drops nodes whose topology differs from the launcher's.
 - Node names resolve via `/etc/hosts`; `cluster/hosts.sample` is the editable IP->name map for
   LAN use (change IPs there, nothing else). `cluster/hosts` is the 4-node hostfile.
-- Cluster topology / Tailscale specifics are in the user's memory (`cluster-setup.md`).
+- Cluster topology specifics are in the user's memory (`cluster-setup.md`).
