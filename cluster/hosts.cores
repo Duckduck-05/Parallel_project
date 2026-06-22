@@ -1,5 +1,5 @@
 # Full cluster, slots = logical cores per node (nproc). Total = 60.
-# Order: node1, node2, node4, node3  (keep node2 & node3 non-adjacent in ring).
+# Result sharing is a global-best broadcast over all ranks, so rank order does not matter.
 node1 slots=16
 node2 slots=12
 node4 slots=16

@@ -1,12 +1,12 @@
-// tsp_sequential.cpp - Task 5: Chạy GA tuần tự (C++) cho 1 bài TSP.
-// Biên dịch: g++ -O2 -o tsp_seq tsp_sequential.cpp
-// Chạy:      ./tsp_seq ../data/cities_30.txt 300 150 42
+// tsp_sequential.cpp - Task 5: Run sequential GA (C++) for one TSP instance.
+// Compile: g++ -O2 -o tsp_seq tsp_sequential.cpp
+// Run:     ./tsp_seq ../data/cities_30.txt 300 150 42
 #include "ga_core.hpp"
 #include <iostream>
 #include <chrono>
 
 int main(int argc, char** argv) {
-    if (argc < 2) { std::cerr << "Dung: " << argv[0]
+    if (argc < 2) { std::cerr << "Usage: " << argv[0]
         << " <file_cities> [gens] [pop] [seed]\n"; return 1; }
     std::string path = argv[1];
     int gens = argc > 2 ? std::stoi(argv[2]) : 500;
@@ -32,11 +32,11 @@ int main(int argc, char** argv) {
 
     int best = (int)(std::min_element(len.begin(), len.end()) - len.begin());
     double secs = std::chrono::duration<double>(t1 - t0).count();
-    std::cout << "So thanh pho   : " << n << "\n"
-              << "The he         : " << gens << ", quan the: " << pop_size << "\n"
-              << "Do dai tot nhat: " << len[best] << "\n"
-              << "Thoi gian       : " << secs << "s\n";
-    std::cout << "Lo trinh        :";
+    std::cout << "Cities         : " << n << "\n"
+              << "Generations    : " << gens << ", population: " << pop_size << "\n"
+              << "Best length    : " << len[best] << "\n"
+              << "Time            : " << secs << "s\n";
+    std::cout << "Route           :";
     for (int c : pop[best]) std::cout << " " << c;
     std::cout << "\n";
     return 0;

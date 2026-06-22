@@ -1,6 +1,8 @@
-# hostfile cho OpenMPI - Task 4
-# slots = so process toi da chay tren may do (dat = so core cua VM).
-# Chay vi du:  mpirun --hostfile hosts -np 3 hostname
+# OpenMPI hostfile - 4 nodes.
+# slots = max processes to run on that machine (set it to the box's core count).
+# node1..node4 are resolved via /etc/hosts (see hosts.sample for the IP -> name map).
+# Run: mpirun --hostfile cluster/hosts -np 4 ./cpp/tsp_island data/cities_50.txt --sync 20
 node1 slots=2
 node2 slots=2
 node3 slots=2
+node4 slots=2

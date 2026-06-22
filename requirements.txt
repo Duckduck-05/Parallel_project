@@ -1,0 +1,5 @@
+# Python is used ONLY for visualization, demos and plotting on this branch.
+# The TSP algorithm + MPI parallelization live entirely in C++ (see cpp/).
+# mpi4py is intentionally NOT required anymore.
+numpy>=1.21
+matplotlib>=3.5

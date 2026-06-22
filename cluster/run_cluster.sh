@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
-# Launch MPI across the Tailscale cluster from node1 (the launcher).
+# Launch an MPI job across the cluster from node1 (the launcher).
 # Usage:
 #   ./run_cluster.sh <hostfile> <np> <command...>
-#   ./run_cluster.sh cluster/hosts.cur 2 hostname
-#   ./run_cluster.sh cluster/hosts.cur 2 python3 python/tsp_island.py data/cities_50.txt --gens 500 --migrate 20
+#   ./run_cluster.sh cluster/hosts 4 hostname
+#   ./run_cluster.sh cluster/hosts 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20
 #
-# Why these flags (discovered the hard way, 2026-06-21):
-#  - node1 + node4 both run OpenMPI 5.0.9 in /opt/openmpi-5.0.9 (must MATCH across nodes,
-#    else PMIx "version mismatch"). node1 was apt 5.0.10 -> rebuilt 5.0.9 from source.
-#  - prte_launch_agent: node4's 5.0.9 isn't in non-interactive ssh PATH, so give prted's
-#    absolute path. Same path exists on node1 (real build).
-#  - oob_tcp/btl_tcp if_include tailscale0: force PRRTE + MPI traffic onto the tailnet
-#    interface, else daemons can't connect back over WAN/NAT and mpirun hangs.
-#
-# NOTE: assumes every remote node has OpenMPI 5.0.9 at /opt/openmpi-5.0.9 and a
-# tailscale0 interface. node3 (macOS) differs (brew path, utun* iface) — adjust
-# LAUNCH_AGENT / IFACE per platform when node3 joins.
+# Why these flags (learned the hard way):
+#  - Every node must run the SAME OpenMPI build (here 5.0.9 in /opt/openmpi-5.0.9), otherwise
+#    PMIx reports a "version mismatch". If a node was installed from apt with a different
+#    version, rebuild 5.0.9 from source so the launcher and all nodes match.
+#  - prte_launch_agent: a node's /opt OpenMPI may not be on its non-interactive ssh PATH, so
+#    we pass prted's absolute path explicitly (the same path exists on every node).
+#  - --map-by seq + --bind-to none: assign ranks to hostfile nodes sequentially WITHOUT
+#    requiring each node's hwloc topology. Essential for HETEROGENEOUS nodes (different core
+#    counts) -- the default topology-aware mapper drops any node whose topology differs from
+#    the launcher's. --bind-to none also avoids core binding (which needs topology).
 set -euo pipefail
 
 export PATH="/opt/openmpi-5.0.9/bin:$PATH"
@@ -23,21 +22,13 @@ export LD_LIBRARY_PATH="/opt/openmpi-5.0.9/lib:${LD_LIBRARY_PATH:-}"
 
 LAUNCH_AGENT="/opt/openmpi-5.0.9/bin/prted"
 
-HOSTFILE="${1:-cluster/hosts.cur}"
-NP="${2:-2}"
+HOSTFILE="${1:-cluster/hosts}"
+NP="${2:-4}"
 shift 2 2>/dev/null || true
 [ "$#" -gt 0 ] || { echo "usage: $0 <hostfile> <np> <command...>"; exit 1; }
 
-# Each rank cd's to its OWN ~/parallel-tsp first ($HOME expands per-node/per-user),
-# because mpirun starts remote ranks in $HOME, and homes differ across machines.
-# No interface pin: tailscale0 (Linux) vs utunN (mac) differ per node and OpenMPI's
-# default selection reaches the tailnet fine. Re-add --mca btl_tcp_if_include if a
-# node with multiple NICs picks the wrong route.
-# --map-by seq + --bind-to none: assign ranks to hostfile nodes sequentially WITHOUT
-# requiring each node's hwloc topology. This is essential for HETEROGENEOUS nodes
-# (different CPU core counts) — the default topology-aware mapper drops any node whose
-# topology differs from the launcher's ("node X lacks topology") on this PRRTE build.
-# --bind-to none also avoids core-binding (which needs topology).
+# Each rank cd's into its OWN ~/parallel-tsp first ($HOME expands per node/user), because
+# mpirun starts remote ranks in $HOME and home directories differ across machines.
 exec mpirun \
   --prtemca prte_launch_agent "$LAUNCH_AGENT" \
   --map-by seq --bind-to none \

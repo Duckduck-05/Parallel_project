@@ -1,3 +1,18 @@
+# Claude
 .claude
+
+# Python
 __pycache__/
 *.pyc
+
+# C++ build artifacts
+cpp/tsp_island
+cpp/tsp_sequential
+cpp/test_ga_core
+cpp/test_local_search
+*.o
+*.exe
+
+# Live-view stream files and scratch run outputs
+results/stream*.jsonl
+*.tmp

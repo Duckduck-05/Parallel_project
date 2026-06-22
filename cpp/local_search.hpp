@@ -1,14 +1,14 @@
-// local_search.hpp - Tối ưu cục bộ 2-opt + Or-opt cho TSP (bản C++).
-// Cùng ý tưởng với python/local_search.py: biến GA -> Memetic Algorithm.
+// local_search.hpp - Local optimization 2-opt + Or-opt for TSP (C++ version).
+// Same idea as python/local_search.py: turns the GA into a Memetic Algorithm.
 #pragma once
 #include "ga_core.hpp"
 
-// Một lượt 2-opt (first-improvement): đảo đoạn [i+1, j] nếu làm tour ngắn hơn.
+// One 2-opt pass (first-improvement): reverse segment [i+1, j] if it shortens the tour.
 inline bool two_opt_once(Tour& t, const std::vector<double>& D, int n) {
     for (int i = 0; i < n - 1; i++) {
         int a = t[i], b = t[(i + 1) % n];
         for (int j = i + 2; j < n; j++) {
-            if (i == 0 && j == n - 1) continue;       // giu canh khep kin
+            if (i == 0 && j == n - 1) continue;       // keep the closing edge
             int c = t[j], d = t[(j + 1) % n];
             double delta = (D[a * n + c] + D[b * n + d]) - (D[a * n + b] + D[c * n + d]);
             if (delta < -1e-9) {
@@ -20,14 +20,14 @@ inline bool two_opt_once(Tour& t, const std::vector<double>& D, int n) {
     return false;
 }
 
-// Lặp 2-opt đến cực tiểu cục bộ.
+// Iterate 2-opt until a local minimum is reached.
 inline void two_opt(Tour& t, const std::vector<double>& D, int n, int max_iter = 1000) {
     for (int it = 0; it < max_iter; it++)
         if (!two_opt_once(t, D, n)) break;
 }
 
-// Or-opt: dời 1 đoạn liên tiếp dài seg_len sang vị trí tốt hơn (bổ trợ 2-opt).
-// Cùng logic với python/local_search.py: đoạn lấy vòng (wrap), chèn lại KHÔNG đảo.
+// Or-opt: move one contiguous segment of length seg_len to a better position (complements 2-opt).
+// Same logic as python/local_search.py: the segment is taken with wrap-around, reinserted WITHOUT reversal.
 inline bool or_opt_once(Tour& t, const std::vector<double>& D, int n, int seg_len) {
     for (int i = 0; i < n; i++) {
         Tour seg(seg_len);
@@ -35,7 +35,7 @@ inline bool or_opt_once(Tour& t, const std::vector<double>& D, int n, int seg_le
         int prev = t[(i - 1 + n) % n], nxt = t[(i + seg_len) % n];
         double removed = D[prev * n + seg[0]] + D[seg[seg_len - 1] * n + nxt]
                          - D[prev * n + nxt];
-        // rest = cac thanh pho khong nam trong seg (xet theo gia tri thanh pho)
+        // rest = the cities not contained in seg (compared by city value)
         std::vector<char> in_seg(n, 0);
         for (int c : seg) in_seg[c] = 1;
         Tour rest;
@@ -65,7 +65,7 @@ inline void or_opt(Tour& t, const std::vector<double>& D, int n,
         if (!or_opt_once(t, D, n, seg_len)) break;
 }
 
-// Đánh bóng cá thể: 2-opt rồi Or-opt (seg_len=2, khớp python/local_search.py).
+// Polish an individual: 2-opt then Or-opt (seg_len=2, matching python/local_search.py).
 inline void polish(Tour& t, const std::vector<double>& D, int n) {
     two_opt(t, D, n);
     or_opt(t, D, n, 2);

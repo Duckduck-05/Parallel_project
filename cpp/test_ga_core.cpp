@@ -1,5 +1,5 @@
-// test_ga_core.cpp - Task 5: Unit test cho lõi GA bản C++.
-// Biên dịch: g++ -O2 -o test_ga test_ga_core.cpp && ./test_ga
+// test_ga_core.cpp - Task 5: Unit tests for the C++ GA core.
+// Compile: g++ -O2 -o test_ga test_ga_core.cpp && ./test_ga
 #include "ga_core.hpp"
 #include <iostream>
 #include <cassert>
@@ -16,7 +16,7 @@ static bool is_permutation(const Tour& t, int n) {
 }
 
 int main() {
-    // 4 thanh pho goc hinh vuong canh 1
+    // 4 cities at the corners of a unit square
     std::vector<std::pair<double,double>> sq = {{0,0},{0,1},{1,1},{1,0}};
     auto D = distance_matrix(sq);
 
@@ -35,7 +35,7 @@ int main() {
         CHECK(is_permutation(t, 8), "mutate_keeps_perm");
     }
 
-    // evolve cải thiện so với tour ngẫu nhiên
+    // evolve improves over a random tour
     std::mt19937 r2(7);
     std::vector<std::pair<double,double>> pts;
     std::uniform_real_distribution<double> u(0, 1);
@@ -49,6 +49,6 @@ int main() {
     double best = *std::min_element(len.begin(), len.end());
     CHECK(best < start, "evolve_improves");
 
-    std::cout << "\nTat ca test PASS (" << passed << " kiem tra).\n";
+    std::cout << "\nAll tests PASSED (" << passed << " checks).\n";
     return 0;
 }

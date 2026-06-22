@@ -4,50 +4,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-University parallel-programming project: solve TSP with an **island-model Genetic Algorithm**, parallelized with **MPI** across a real multi-node cluster. Two parallel implementations of the **same algorithm**: Python (`mpi4py`) and C++ (OpenMPI). Grading weighs topic interest, how the problem is parallelized, a live demo, the report, and whether each member understands their code. Comments and docs are in Vietnamese — match that when editing.
+University parallel-programming project: solve the TSP with an **island-model Genetic
+Algorithm**, parallelized with **MPI** across a real multi-node cluster (up to 4 nodes).
+
+On this branch the entire solver is **C++** (the algorithm + all MPI). **Python exists only
+for visualization, the live demo, and plotting report figures** - it contains no algorithm.
+Everything on this branch is in **English** (comments, output, docs); keep it that way.
 
 ## Commands
 
-Most work runs under **WSL/Linux** (MPI + matplotlib live there). On this Windows host there is no compiler/MPI — shell into WSL: paths mount at `/mnt/c/...`.
+Most work runs under **WSL/Linux**. On the Windows host there is no usable MPI toolchain.
+A source build of OpenMPI 5.0.9 lives at `/opt/openmpi-5.0.9` in WSL; the system `mpicxx`
+wrapper is broken (missing dev headers), so build with explicit flags or point `CXX` at the
+/opt wrapper. Note: WSL `/tmp` is wiped between separate `wsl` invocations - build and run
+in a single shell command.
 
 ```bash
-# Python tests (no MPI needed)
-cd python && python3 -m pytest test_ga_core.py test_local_search.py -v
-python3 test_ga_core.py            # also runnable directly (no pytest)
+# Build + unit tests (run inside one WSL invocation)
+cd cpp && make CXX=/opt/openmpi-5.0.9/bin/mpicxx          # or plain `make` on the cluster
+make test                                                 # GA + local-search unit tests, no MPI
 
-# C++ build + tests (needs OpenMPI mpicxx, C++17)
-cd cpp && mpicxx -O2 -std=c++17 -o tsp_island tsp_island.cpp
-g++ -O2 -o test_ls test_local_search.cpp && ./test_ls   # local_search has no MPI dep
+# Build manually if the mpicxx wrapper misbehaves:
+g++ -O2 -std=c++17 -I/opt/openmpi-5.0.9/include cpp/tsp_island.cpp \
+    -L/opt/openmpi-5.0.9/lib -Wl,-rpath,/opt/openmpi-5.0.9/lib -lmpi -o cpp/tsp_island
 
-# Run on one machine (oversubscribe cores)
-bash cluster/run_local.sh 4 data/cities_50.txt --gens 500 --migrate 20
+# Run on one machine
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20
+bash cluster/run_local.sh 4 data/cities_50.txt --gens 500 --sync 20
 
-# Run on the cluster (from launcher node; see flags note below)
-bash cluster/run_cluster.sh cluster/hosts.cur 4 python3 python/tsp_island.py data/cities_50.txt --gens 500 --migrate 20
+# Run on the cluster (from node1)
+bash cluster/run_cluster.sh cluster/hosts 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20
 
-# Generate report figures (CSV + PNG into results/)
-cd python && python3 experiments.py speedup --procs 1 2 4 8 --size 200
-python3 experiments.py size --procs 4 --sizes 50 100 200 400
-python3 experiments.py gran --procs 4 --size 200
+# Report figures (Python drives the C++ binary, then plots)
+python3 python/experiments.py speedup --procs 1 2 4 8 --size 200
+bash cluster/run_report_experiments.sh
 ```
 
-`--migrate 0` disables migration (the no-share baseline, "Task 6"); `--migrate N` migrates every N generations ("Task 7"). `--twoopt N` turns on memetic 2-opt/Or-opt polishing. `--auto-balance` (Python only) micro-benchmarks each node and sizes its population inversely to runtime (for heterogeneous clusters). `--live FILE` makes rank 0 stream JSONL for `live_view.py`.
+Flags: `--sync N` (global-best broadcast interval; `0` = no sharing baseline), `--patience N`
+(stop after N stalled generations; `0` = off), `--pop`, `--gens`, `--twoopt`, `--seed`,
+`--auto-balance`, `--out`, `--stats`, `--live`. `--migrate` is kept as an alias for `--sync`.
 
 ## Architecture
 
-**Shared GA core, two languages.** `python/ga_core.py` ≙ `cpp/ga_core.hpp`, `python/local_search.py` ≙ `cpp/local_search.hpp`, `python/tsp_island.py` ≙ `cpp/tsp_island.cpp`. The algorithm is intentionally kept identical: tournament(k=5) selection, order crossover (OX), mutation (swap + segment reverse, rate 0.3), elitism=1; memetic polish = 2-opt then Or-opt(seg_len=2). **When you change one language's algorithm, mirror it in the other.** Note RNGs differ (numpy PCG64 vs `mt19937`), so identical seeds do NOT produce identical tours — this is expected.
+**The C++ source is the whole solver.** `cpp/ga_core.hpp` (GA operators: tournament k=5, OX
+crossover, mutation = swap + segment reverse rate 0.3, elitism=1), `cpp/local_search.hpp`
+(2-opt then Or-opt seg_len=2 = the memetic polish), `cpp/tsp_island.cpp` (MPI island solver,
+the main deliverable), `cpp/tsp_sequential.cpp` (single-process baseline for T(1)).
 
-**Parallelism = island model.** Each MPI rank is an independent island (own seed `base + rank*1000`). Periodically each island sends its best tour to its `right` neighbor and receives from `left` in a ring, via a single `Sendrecv` (send+recv together → no deadlock). The immigrant replaces the island's worst individual **only if it is better**. Final gather uses `Allreduce(MINLOC)` to find the rank holding the global-best tour, which then `Send`s it to rank 0. This "share results during searching" (migration) vs not is the project's central experiment.
+**Parallelism = islands + periodic global-best broadcast + convergence stop.** Each rank is an
+independent island (seed `base + rank*1000`). Every `--sync` generations: `Allreduce(MINLOC)`
+finds the global-best (value, owner); the owner `Bcast`s that tour; other islands inject it
+over their worst individual. Because the global best is identical on every rank, all ranks
+**break together** once it stalls for `--patience` generations (no extra comm). `--sync 0` is
+the no-sharing baseline. Final result gathered via `Allreduce(MINLOC)` + a point-to-point send
+to rank 0. (Earlier history note: this replaced an older ring-migration scheme.)
 
-**Timing/instrumentation lives only in the Python version.** `tsp_island.py` splits `comm_time` (time inside MPI calls) from `compute_time = elapsed - comm_time`, computes `makespan = max(elapsed)` across ranks, and emits per-rank stats (`--stats` CSV, `--out`+`.history`). The C++ version is the lean speed baseline and prints only the result — do not assume C++ has these flags.
+**Instrumentation is built into `tsp_island.cpp`.** It splits `comm_time` (time inside MPI
+calls) from `compute_time`, computes `makespan = max(elapsed)`, and emits: a per-rank stdout
+table, `--stats` CSV (columns: `rank,n_cities,procs,gens,pop,compute_s,comm_s,total_s,makespan_s,best_len`),
+`--out` tour + `.history`, and `--live` JSONL. The Python tools parse these - if you change the
+stdout "Time" line or the CSV columns, update `python/benchmark.py` (regex `^Time\s*:`) and
+`python/experiments.py` (CSV reader) to match.
 
-**`experiments.py` orchestrates report figures** by shelling out to `mpirun ... tsp_island.py --stats`, parsing the CSVs, and plotting speedup/efficiency, size scaling, and per-rank granularity. `benchmark.py` is the simpler speedup-table generator. Results land in `results/`.
+**Python tooling (plotting/demo only).** `experiments.py` and `benchmark.py` shell out to
+`mpirun ./cpp/tsp_island` (locally, or via `cluster/run_cluster.sh` on the cluster) and plot.
+`visualize.py` draws the route + convergence from `--out`/`.history` files. `live_view.py` has
+two modes: `run` launches the C++ solver with a temp `--live` stream and animates it; `tail`
+follows a real cluster run's stream. All Python files carry their own tiny city-file reader so
+they depend on no algorithm module.
 
-**`live_view.py`** has two modes: `run` (runs multi-island GA in-process, no MPI, for laptop demos) and `tail` (follows a real cluster run's `--live` JSONL). The `--live` stream is rank-0 IO only — it adds no MPI traffic, so it does not distort benchmarks.
+## Cluster gotchas (see `cluster/run_cluster.sh` header)
 
-## Cluster gotchas (hard-won — see `cluster/run_cluster.sh` header)
-
-- **All nodes must run the exact same OpenMPI build** (5.0.9 from source in `/opt/openmpi-5.0.9`), else PMIx version-mismatch. `run_cluster.sh` pins PATH and passes `prte_launch_agent` as an absolute path because the remote non-interactive SSH PATH won't find it.
-- **Heterogeneous nodes** (different core counts) require `--map-by seq --bind-to none` — the default topology-aware mapper drops nodes whose topology differs from the launcher.
-- Hostfile variants: `cluster/hosts*` — `hosts.cur` is the active one; `hosts.tailscale` for the remote-over-VPN setup. Each rank `cd`s into its own `$HOME/parallel-tsp` because homes differ per node.
-- Cluster topology, Tailscale, and `/etc/hosts` specifics are in the user's memory (`cluster-setup.md`) and `cluster/TASK*` / `docs/TASK_remote_tailscale_guide.md`.
+- **All nodes must run the same OpenMPI build** (5.0.9 from source in `/opt/openmpi-5.0.9`),
+  else PMIx version mismatch. `run_cluster.sh` pins PATH and passes `prte_launch_agent` as an
+  absolute path (remote non-interactive SSH PATH won't find it otherwise).
+- **Heterogeneous nodes** need `--map-by seq --bind-to none` - the default topology-aware
+  mapper drops nodes whose topology differs from the launcher's.
+- Node names resolve via `/etc/hosts`; `cluster/hosts.sample` is the editable IP->name map for
+  LAN use (change IPs there, nothing else). `cluster/hosts` is the 4-node hostfile.
+- Cluster topology / Tailscale specifics are in the user's memory (`cluster-setup.md`).

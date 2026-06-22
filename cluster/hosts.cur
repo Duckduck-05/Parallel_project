@@ -1,8 +1,7 @@
-# Full cluster: node1 + node2 + node4 + node3 (all 4 members).
+# Full cluster: all 4 members (node1 + node2 + node4 + node3).
 # Run:  bash cluster/run_cluster.sh cluster/hosts.cur 4 hostname
-# Order matters for python/tsp_island.py and cpp/tsp_island.cpp ring migration:
-# neighboring ranks exchange migrants. Keep node2 and node3 non-adjacent because
-# node1+2+4 and node1+3+4 work, but the direct node2<->node3 path is flaky.
+# Rank order no longer affects the algorithm: result sharing is a global-best broadcast
+# (Allreduce + Bcast over all ranks), not neighbour-to-neighbour, so adjacency is irrelevant.
 node1 slots=2
 node2 slots=2
 node4 slots=2

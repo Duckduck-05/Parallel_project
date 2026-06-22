@@ -1,5 +1,8 @@
-# Mau /etc/hosts cho ca 3 may - THAY IP bang IP that (lay tu: hostname -I)
-# Dan 3 dong duoi vao cuoi file /etc/hosts tren CA 3 may, GIONG NHAU.
-192.168.43.11   node1
-192.168.43.12   node2
-192.168.43.13   node3
+# /etc/hosts template for the LAN cluster - REPLACE these IPs with your real ones
+# (on each machine run: hostname -I). Paste the 4 lines below at the END of /etc/hosts
+# on EVERY node, identical on all of them. After that, cluster/hosts refers to the
+# nodes by name, so only this mapping changes when the LAN/IPs change.
+192.168.1.11   node1
+192.168.1.12   node2
+192.168.1.13   node3
+192.168.1.14   node4
