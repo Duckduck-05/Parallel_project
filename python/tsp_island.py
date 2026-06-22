@@ -51,31 +51,39 @@ def main():
 
     pop_size = args.pop
     if args.auto_balance and size > 1:
-        # --- Micro-benchmark: do toc do may bang 1 vai the he GA tren quan the nho ---
-        bench_pop = [ga.random_tour(n, rng) for _ in range(30)]
-        bench_len = [ga.tour_length(t, D) for t in bench_pop]
-        t_bench = MPI.Wtime()
-        for _ in range(5):
-            order = np.argsort(bench_len)
-            bench_pop = [bench_pop[i] for i in order]
-            bench_len = [bench_len[i] for i in order]
-            new_bp = bench_pop[:1]
-            while len(new_bp) < 30:
-                p1 = ga.tournament_select(bench_pop, bench_len, 5, rng)
-                p2 = ga.tournament_select(bench_pop, bench_len, 5, rng)
-                child = ga.order_crossover(p1, p2, rng)
-                ga.mutate(child, 0.3, rng)
-                new_bp.append(child)
-            bench_pop = new_bp
+        # --- Micro-benchmark: do toc do may bang nhieu the he GA tren quan the vua phai ---
+        # Quan the/so the he can du lon de phan anh dung throughput thuc te (benchmark qua
+        # nho/ngan bi nhieu boi CPU turbo-boost ramp-up, cache warmup... -> do sai toc do).
+        # Lay trung binh 2 lan do de giam nhieu.
+        BENCH_POP, BENCH_GENS, BENCH_REPS = 100, 15, 2
+        times = []
+        for _rep in range(BENCH_REPS):
+            bench_pop = [ga.random_tour(n, rng) for _ in range(BENCH_POP)]
             bench_len = [ga.tour_length(t, D) for t in bench_pop]
-        my_time = max(MPI.Wtime() - t_bench, 1e-6)  # tranh chia cho 0
+            t_bench = MPI.Wtime()
+            for _ in range(BENCH_GENS):
+                order = np.argsort(bench_len)
+                bench_pop = [bench_pop[i] for i in order]
+                bench_len = [bench_len[i] for i in order]
+                new_bp = bench_pop[:1]
+                while len(new_bp) < BENCH_POP:
+                    p1 = ga.tournament_select(bench_pop, bench_len, 5, rng)
+                    p2 = ga.tournament_select(bench_pop, bench_len, 5, rng)
+                    child = ga.order_crossover(p1, p2, rng)
+                    ga.mutate(child, 0.3, rng)
+                    new_bp.append(child)
+                bench_pop = new_bp
+                bench_len = [ga.tour_length(t, D) for t in bench_pop]
+            times.append(MPI.Wtime() - t_bench)
+        my_time = max(min(times), 1e-6)  # lay lan nhanh nhat (it bi nhieu OS gay nhat)
         all_times = comm.allgather(my_time)
-        # population ti le nghich voi thoi gian (may nhanh -> pop lon), tong khong doi
+        # population ti le nghich voi thoi gian (may nhanh -> pop lon), tong khong doi.
+        # Gioi han ti le lech [0.5x, 2x] so voi --pop de tranh 1 lan do nhieu pha vo can bang.
         speed = [1.0 / t for t in all_times]
         total_speed = sum(speed)
         total_pop = args.pop * size
-        min_pop = max(20, args.pop // 4)   # san duoi, tranh quan the qua nho
-        raw = [max(min_pop, round(total_pop * s / total_speed)) for s in speed]
+        lo, hi = args.pop // 2, args.pop * 2
+        raw = [int(np.clip(round(total_pop * s / total_speed), lo, hi)) for s in speed]
         pop_size = raw[rank]
         if rank == 0:
             print(f"Auto-balance: thoi gian benchmark moi dao = "
