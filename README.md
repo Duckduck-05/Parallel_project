@@ -127,6 +127,22 @@ C++ solver in WSL (streaming `--live`) and opens a native window that replays th
 generation 1 (messy tangle -> clean route). The viewer replays at `--step` generations per
 frame, so it works even though C++ converges in ~1 second.
 
+### Parallelism demo - "islands race"
+
+Each MPI rank is an independent island. Run the solver with `--out`, and **every** rank writes
+its own convergence history (`<prefix>.rankN.history`, no extra MPI communication). The viewer
+overlays them - one curve per island plus the bold **global best**, with green markers at each
+sync - so you watch the islands search in parallel and pull toward the shared best:
+
+![Islands race](results/islands_race.gif)
+
+```bash
+# 4 islands, write per-rank histories, then watch the race:
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_500.txt --gens 2000 --sync 100 --out results/race
+python3 python/live_view.py race results/race --sync 100
+# or, on Windows, double-click demo_parallel.bat
+```
+
 ```bash
 # Live demo (launches the C++ solver locally and animates it):
 python3 python/live_view.py run data/cities_30.txt --islands 4 --gens 400 --sync 20

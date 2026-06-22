@@ -243,6 +243,66 @@ def cmd_tail(args):
     tailer.run(save=args.save)
 
 
+def cmd_race(args):
+    """Islands race: overlay every island's convergence curve + the global best, with
+    vertical markers at each sync. Shows the parallel search + result sharing directly.
+    Reads the per-rank history files the solver writes with --out (<prefix>.rankN.history)."""
+    import glob
+    files = sorted(glob.glob(args.prefix + ".rank*.history"),
+                   key=lambda p: int(p.split(".rank")[1].split(".")[0]))
+    if not files:
+        sys.exit(f"No per-rank history files {args.prefix}.rank*.history\n"
+                 f"Run the solver with --out {args.prefix} first.")
+    hs = [np.atleast_1d(np.loadtxt(f)) for f in files]
+    G = min(len(h) for h in hs)
+    hs = [h[:G] for h in hs]
+    gbest = np.minimum.reduce(hs)              # global best per generation = min over islands
+
+    fig, ax = plt.subplots(figsize=(11, 6))
+    try:
+        fig.canvas.manager.set_window_title("Islands race")
+    except Exception:
+        pass
+    ax.set_xlabel("Generation"); ax.set_ylabel("Best tour length"); ax.grid(alpha=0.3)
+    if args.sync > 0:
+        for k in range(args.sync, G, args.sync):
+            ax.axvline(k, color="green", lw=0.6, alpha=0.18, zorder=1)
+    lines = [ax.plot([], [], lw=1.1, alpha=0.75, label=f"island {i}", zorder=2)[0]
+             for i in range(len(hs))]
+    (gln,) = ax.plot([], [], lw=2.6, color="black", label="global best", zorder=5)
+    ax.set_xlim(0, G)
+    # Zoom the y-axis to the convergence band (near the optimum) so the island spread and the
+    # per-sync jumps are visible. The long descent from the random start enters from the top.
+    bot = float(gbest.min())
+    top = bot * args.zoom
+    ax.set_ylim(bot - 0.04 * (top - bot), top)
+    ax.legend(loc="upper right", fontsize=8, ncol=2)
+
+    # Skip the long descent that happens above the zoom band so the animation is lively.
+    start = int(np.argmax(gbest <= top)) if bool((gbest <= top).any()) else 0
+    nframes = (G - start + args.step - 1) // args.step
+
+    def upd(f):
+        i = min(start + (f + 1) * args.step, G)
+        xs = np.arange(i)
+        for ln, h in zip(lines, hs):
+            ln.set_data(xs, h[:i])
+        gln.set_data(xs, gbest[:i])
+        ax.set_title(f"Islands race - {len(hs)} islands, sync every {args.sync} gens   "
+                     f"|  gen {i}   global best {gbest[i - 1]:.1f}")
+        return lines + [gln]
+
+    anim = FuncAnimation(fig, upd, frames=nframes, interval=args.interval,
+                         blit=False, repeat=False, cache_frame_data=False)
+    if args.save:
+        fps = max(1, int(1000 / args.interval))
+        print(f"Rendering {args.save} ({nframes} frames)... this can take a moment.")
+        anim.save(args.save, writer="pillow", fps=fps, dpi=args.dpi)
+        print(f"Saved {args.save}")
+    else:
+        plt.tight_layout(); plt.show()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Real-time visualization for the Island-GA TSP")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -269,6 +329,17 @@ def main():
     t.add_argument("--step", type=int, default=5, help="generations advanced per frame (lower = slower replay)")
     t.add_argument("--save", default=None, help="save a video (rarely used in tail mode)")
     t.set_defaults(func=cmd_tail)
+
+    rc = sub.add_parser("race", help="islands race: overlay per-island convergence + sync markers")
+    rc.add_argument("prefix", help="--out prefix used by the solver (reads <prefix>.rankN.history)")
+    rc.add_argument("--sync", type=int, default=25, help="sync interval (for the vertical markers)")
+    rc.add_argument("--interval", type=int, default=60, help="ms between frames")
+    rc.add_argument("--step", type=int, default=5, help="generations advanced per frame")
+    rc.add_argument("--save", default=None, help="save a GIF instead of showing (e.g. results/islands_race.gif)")
+    rc.add_argument("--dpi", type=int, default=90, help="GIF resolution when --save is used")
+    rc.add_argument("--zoom", type=float, default=1.5,
+                    help="y-axis top = best*zoom; smaller zooms into the convergence band")
+    rc.set_defaults(func=cmd_race)
 
     args = ap.parse_args()
     args.func(args)

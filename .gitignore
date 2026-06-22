@@ -15,6 +15,8 @@ cpp/test_local_search
 
 # Live-view stream files and scratch run outputs
 results/stream*.jsonl
+results/race*
+results/_*.png
 *.tmp
 
 # Local-only docs (kept on disk, never pushed)

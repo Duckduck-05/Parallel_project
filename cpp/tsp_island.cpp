@@ -245,6 +245,14 @@ int main(int argc, char** argv) {
         live_f.close();
     }
 
+    // Per-rank convergence history (for the "islands race" demo): EVERY rank writes its own
+    // local-best-per-generation file. No extra MPI communication, so timing is unaffected.
+    if (!out_file.empty()) {
+        std::ofstream rh(out_file + ".rank" + std::to_string(rank) + ".history");
+        rh << std::fixed << std::setprecision(4);
+        for (double h : history) rh << h << "\n";
+    }
+
     if (rank == 0) {
         double comm_avg = 0.0;
         for (double c : all_comm) comm_avg += c;
