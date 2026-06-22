@@ -4,9 +4,12 @@
 //   - Each process is an independent "island" running its own GA with its own seed,
 //     so the islands explore different regions of the solution space in parallel.
 //   - Every --sync generations the islands share results: Allreduce(MINLOC) finds the
-//     single global-best tour across all islands, that owner Bcasts the tour to everyone,
-//     and each other island injects it (replacing its worst individual). This pulls every
-//     island toward the best solution found so far -- a global elitism step.
+//     single global-best tour across all islands and its owner Bcasts it. But instead of
+//     cloning that whole tour into every island (which collapses diversity), each other
+//     island performs PARTIAL migration: it splices only a random CONTIGUOUS SEGMENT of the
+//     global best into --migrants of its individuals via OX crossover (segment from the best,
+//     the rest from a random local individual). Random cut points + different local mates mean
+//     every island ends up different, so good sub-routes spread while diversity is preserved.
 //   - CONVERGENCE STOP: the global best is known to every rank at each sync (identical
 //     value everywhere), so all ranks can agree to stop together once the global best has
 //     not improved for --patience generations. No extra communication, no deadlock.
@@ -52,7 +55,7 @@ int main(int argc, char** argv) {
 
     // --- parse arguments ---
     std::string path = argc > 1 ? argv[1] : "../data/cities_30.txt";
-    int gens = 500, pop_size = 200, sync = 20, twoopt = 0, patience = 0;
+    int gens = 500, pop_size = 200, sync = 20, twoopt = 0, patience = 0, migrants = 3;
     unsigned seed = 42;
     bool auto_balance = false;
     std::string out_file, stats_file, live_file;
@@ -63,6 +66,7 @@ int main(int argc, char** argv) {
         // --sync is the new name; --migrate kept as an alias for older scripts.
         else if ((a == "--sync" || a == "--migrate") && i + 1 < argc) sync = std::stoi(argv[++i]);
         else if (a == "--patience" && i + 1 < argc) patience = std::stoi(argv[++i]);
+        else if (a == "--migrants" && i + 1 < argc) migrants = std::stoi(argv[++i]);
         else if (a == "--twoopt" && i + 1 < argc) twoopt = std::stoi(argv[++i]);
         else if (a == "--seed" && i + 1 < argc) seed = std::stoul(argv[++i]);
         else if (a == "--out" && i + 1 < argc) out_file = argv[++i];
@@ -167,12 +171,17 @@ int main(int argc, char** argv) {
             if (rank == out.rank) bcast_buf = pop[bi];
             MPI_Bcast(bcast_buf.data(), n, MPI_INT, out.rank, MPI_COMM_WORLD);
             comm_time += MPI_Wtime() - tc;
-            // 3) every other island injects it in place of its worst individual
+            // 3) PARTIAL migration: splice a random segment of the global best into a few
+            //    individuals via OX (segment from the best + rest from a random local mate),
+            //    replacing the worst slots. Keeps each island distinct -> preserves diversity.
             if (rank != out.rank) {
-                int wi = (int)(std::max_element(len.begin(), len.end()) - len.begin());
-                if (out.val < len[wi]) {
-                    pop[wi] = bcast_buf;
-                    len[wi] = out.val;
+                const Tour& gbest = bcast_buf;
+                for (int m = 0; m < migrants; m++) {
+                    int wi = (int)(std::max_element(len.begin(), len.end()) - len.begin());
+                    int mate = (int)(rng() % pop_size);          // random local individual
+                    Tour child = order_crossover(gbest, pop[mate], rng);  // OX: keeps a segment of gbest
+                    pop[wi] = std::move(child);
+                    len[wi] = tour_length(pop[wi], D, n);
                 }
             }
             // 4) convergence stop: identical on every rank, so all stop together
@@ -240,7 +249,7 @@ int main(int argc, char** argv) {
         double comm_avg = 0.0;
         for (double c : all_comm) comm_avg += c;
         comm_avg /= size;
-        std::string mode = sync > 0 ? "global-best broadcast" : "NO sharing (baseline)";
+        std::string mode = sync > 0 ? "partial global-best migration" : "NO sharing (baseline)";
         std::string pop_label = auto_balance ? "auto (see table below)" : std::to_string(pop_size);
         bool stopped_early = gens_run < gens;
         std::cout << std::fixed;

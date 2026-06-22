@@ -23,10 +23,13 @@ Each MPI process is an independent **island** running its own GA with its own se
 islands explore different regions of the search space in parallel. They share results
 periodically:
 
-1. **Global-best broadcast (every `--sync` generations).** `MPI_Allreduce(MINLOC)` finds the
-   single best tour across all islands; its owner `MPI_Bcast`s that tour to everyone; each
-   other island injects it in place of its worst individual. This is a global elitism step
-   that pulls every island toward the best solution found so far.
+1. **Partial global-best migration (every `--sync` generations).** `MPI_Allreduce(MINLOC)`
+   finds the single best tour across all islands; its owner `MPI_Bcast`s it. Rather than
+   cloning that whole tour into every island (which collapses diversity), each other island
+   splices only a random contiguous **segment** of it into `--migrants` of its individuals via
+   OX crossover (segment from the best, the rest from a random local individual). Good
+   sub-routes spread, but random cut points + different local mates keep every island distinct
+   so diversity is preserved.
 2. **Convergence stop.** Because the global best is identical on every rank at each sync, all
    ranks can agree to **stop together** once it has not improved for `--patience` generations -
    no extra communication, no deadlock.
@@ -67,10 +70,11 @@ mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sy
 bash cluster/run_local.sh 4 data/cities_50.txt --gens 500 --sync 20
 ```
 
-Key flags: `--gens`, `--pop`, `--sync` (broadcast interval, `0` = off), `--patience`
-(stop after this many stalled generations, `0` = off), `--twoopt` (2-opt memetic period),
-`--seed`, `--auto-balance`, `--out tour.txt` (also writes `tour.txt.history`),
-`--stats file.csv`, `--live stream.jsonl`.
+Key flags: `--gens`, `--pop`, `--sync` (migration interval, `0` = off), `--migrants`
+(individuals recombined with the global best per sync; default 3 - higher = more mixing,
+less diversity), `--patience` (stop after this many stalled generations, `0` = off),
+`--twoopt` (2-opt memetic period), `--seed`, `--auto-balance`,
+`--out tour.txt` (also writes `tour.txt.history`), `--stats file.csv`, `--live stream.jsonl`.
 
 ## Cluster (4 nodes, LAN)
 

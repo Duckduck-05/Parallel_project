@@ -10,14 +10,14 @@ Two modes:
          temporary --live stream file, then animate the best route + convergence graph
          live as the solver evolves. Good for a one-machine demo / slides.
 
-           python3 live_view.py run ../data/cities_30.txt --islands 4 --gens 400 --migrate 20
+           python3 live_view.py run ../data/cities_30.txt --islands 4 --gens 400 --sync 20
 
   tail - "Tail" a JSONL stream file produced by a REAL distributed run on the cluster
          (cpp/tsp_island --live stream.jsonl) and draw its progress live.
 
            # window 1 (on rank 0 / the head node):
            mpirun --hostfile ../cluster/hosts -np 4 ./tsp_island ../data/cities_30.txt \
-                  --gens 400 --migrate 20 --live ../results/stream.jsonl
+                  --gens 400 --sync 20 --live ../results/stream.jsonl
            # window 2:
            python3 live_view.py tail ../results/stream.jsonl ../data/cities_30.txt
 
@@ -218,12 +218,12 @@ def cmd_run(args):
     stream = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False).name
     cmd = ["mpirun", "--oversubscribe", "-np", str(args.islands), binary, args.cities,
            "--gens", str(args.gens), "--pop", str(args.pop),
-           "--migrate", str(args.migrate), "--twoopt", str(args.twoopt),
-           "--seed", str(args.seed), "--live", stream]
+           "--sync", str(args.sync), "--migrants", str(args.migrants),
+           "--twoopt", str(args.twoopt), "--seed", str(args.seed), "--live", stream]
     print("Launching:", " ".join(cmd))
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     mode = f"{args.islands} islands, " + (
-        f"migrate every {args.migrate} gens" if args.migrate else "NO migration")
+        f"sync every {args.sync} gens" if args.sync else "NO sharing")
     tailer = StreamTailer(stream, coords, title_mode="run/C++", interval=args.interval,
                           proc=proc)
     print(f"Streaming from {stream}  (close the window to stop)")
@@ -250,7 +250,8 @@ def main():
     r.add_argument("--islands", type=int, default=4)
     r.add_argument("--gens", type=int, default=400)
     r.add_argument("--pop", type=int, default=200)
-    r.add_argument("--migrate", type=int, default=20, help="0 = no migration")
+    r.add_argument("--sync", type=int, default=20, help="migration interval; 0 = no sharing")
+    r.add_argument("--migrants", type=int, default=3, help="individuals recombined with the global best per sync")
     r.add_argument("--twoopt", type=int, default=0, help="2-opt period (Memetic); 0 = off")
     r.add_argument("--seed", type=int, default=42)
     r.add_argument("--interval", type=int, default=200, help="ms between stream reads")

@@ -40,9 +40,10 @@ python3 python/experiments.py speedup --procs 1 2 4 8 --size 200
 bash cluster/run_report_experiments.sh
 ```
 
-Flags: `--sync N` (global-best broadcast interval; `0` = no sharing baseline), `--patience N`
-(stop after N stalled generations; `0` = off), `--pop`, `--gens`, `--twoopt`, `--seed`,
-`--auto-balance`, `--out`, `--stats`, `--live`. `--migrate` is kept as an alias for `--sync`.
+Flags: `--sync N` (migration interval; `0` = no-sharing baseline), `--migrants K` (individuals
+recombined with the global best per sync; default 3), `--patience N` (stop after N stalled
+generations; `0` = off), `--pop`, `--gens`, `--twoopt`, `--seed`, `--auto-balance`, `--out`,
+`--stats`, `--live`. `--migrate` is kept as an alias for `--sync`.
 
 ## Architecture
 
@@ -51,13 +52,16 @@ crossover, mutation = swap + segment reverse rate 0.3, elitism=1), `cpp/local_se
 (2-opt then Or-opt seg_len=2 = the memetic polish), `cpp/tsp_island.cpp` (MPI island solver,
 the main deliverable), `cpp/tsp_sequential.cpp` (single-process baseline for T(1)).
 
-**Parallelism = islands + periodic global-best broadcast + convergence stop.** Each rank is an
-independent island (seed `base + rank*1000`). Every `--sync` generations: `Allreduce(MINLOC)`
-finds the global-best (value, owner); the owner `Bcast`s that tour; other islands inject it
-over their worst individual. Because the global best is identical on every rank, all ranks
-**break together** once it stalls for `--patience` generations (no extra comm). `--sync 0` is
-the no-sharing baseline. Final result gathered via `Allreduce(MINLOC)` + a point-to-point send
-to rank 0. (Earlier history note: this replaced an older ring-migration scheme.)
+**Parallelism = islands + periodic partial global-best migration + convergence stop.** Each
+rank is an independent island (seed `base + rank*1000`). Every `--sync` generations:
+`Allreduce(MINLOC)` finds the global-best (value, owner); the owner `Bcast`s that tour; each
+other island then splices only a random contiguous SEGMENT of it into `--migrants` individuals
+via OX crossover (segment from the best + rest from a random local mate), replacing its worst
+slots. This spreads good sub-routes while preserving diversity (no whole-tour cloning). Because
+the global-best *value* is identical on every rank, all ranks **break together** once it stalls
+for `--patience` generations (no extra comm). `--sync 0` is the no-sharing baseline. Final
+result gathered via `Allreduce(MINLOC)` + a point-to-point send to rank 0. (History: this
+replaced first a ring-migration scheme, then a full global-best broadcast.)
 
 **Instrumentation is built into `tsp_island.cpp`.** It splits `comm_time` (time inside MPI
 calls) from `compute_time`, computes `makespan = max(elapsed)`, and emits: a per-rank stdout
