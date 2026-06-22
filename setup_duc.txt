@@ -1,0 +1,6 @@
+mpirun --version
+mpirun (Open MPI) 5.0.9
+tailscale ip : 100.97.106.69
+node name: node-duck
+SSH public key:
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDhwFOEKVOgykJdLSk28c0NOZrERPfn85mqzFR8eIF6h mpiuser@node-duck
