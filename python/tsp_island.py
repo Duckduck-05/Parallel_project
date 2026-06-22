@@ -34,6 +34,9 @@ def main():
                     help="do toc do tung may luc khoi dong roi chia population ti le nghich "
                          "voi thoi gian do duoc (may nhanh nhan population lon hon), giu tong "
                          "population khong doi. Mac dinh tat de khong anh huong benchmark cu.")
+    ap.add_argument("--live", default=None,
+                    help="rank 0 ghi luong JSONL (1 dong/the he) cho live_view.py tail; "
+                         "chi IO tren rank 0, KHONG them giao tiep MPI -> khong lam sai benchmark")
     args = ap.parse_args()
 
     comm = MPI.COMM_WORLD
@@ -100,6 +103,15 @@ def main():
     # va kiem tra can bang tai (granularity) trong bao cao.
     comm_time = 0.0
 
+    # --- LIVE: rank 0 mo file luong de live_view.py "bam duoi" ve real-time ---
+    # Chi ghi cá thể tốt nhất CỤC BỘ của rank 0 (khong allreduce moi the he) ->
+    # khong them giao tiep MPI nao nen KHONG anh huong so do benchmark.
+    live_f = None
+    if args.live and rank == 0:
+        import json as _json
+        live_f = open(args.live, "w", buffering=1)   # line-buffered de tail thay ngay
+        live_f._json = _json
+
     comm.Barrier()
     t0 = MPI.Wtime()
 
@@ -140,6 +152,14 @@ def main():
 
         history.append(min(lengths))
 
+        # --- LIVE stream (rank 0): 1 dong JSON/the he = {gen, best_len, tour} ---
+        if live_f is not None:
+            bi = int(np.argmin(lengths))
+            live_f.write(live_f._json.dumps(
+                {"gen": gen + 1,
+                 "best_len": float(lengths[bi]),
+                 "tour": pop[bi].tolist()}) + "\n")
+
     comm.Barrier()
     elapsed = MPI.Wtime() - t0
 
@@ -166,6 +186,13 @@ def main():
     # makespan = thoi gian chay that su cua chuong trinh = max(elapsed) tren cac dao
     makespan = comm.allreduce(elapsed, op=MPI.MAX)
     per_rank = comm.gather((rank, compute_time, comm_time, elapsed, pop_size), root=0)
+
+    if live_f is not None:
+        # dong cuoi = ket qua TOAN CUC that su (sau khi gom tu dao thang)
+        live_f.write(live_f._json.dumps(
+            {"gen": args.gens, "best_len": float(global_best),
+             "tour": np.asarray(best_tour).tolist(), "done": True}) + "\n")
+        live_f.close()
 
     if rank == 0:
         mode = "co di cu" if args.migrate > 0 else "KHONG di cu"

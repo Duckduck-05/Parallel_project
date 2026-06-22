@@ -86,6 +86,7 @@ def evolve(D, pop_size, generations, rng,
     for gen in range(generations):
         order = np.argsort(lengths)
         pop = [pop[i] for i in order]
+        lengths = [lengths[i] for i in order]       # giữ lengths khớp với pop sau khi sắp xếp
         new_pop = pop[:elite]                       # giữ tinh hoa
         while len(new_pop) < pop_size:
             p1 = tournament_select(pop, lengths, tournament_k, rng)

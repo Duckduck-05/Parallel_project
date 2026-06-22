@@ -1,0 +1,21 @@
+TSP Island-GA — C/C++ (MPI) source
+==================================
+Requires: OpenMPI (mpicxx), C++17.
+
+Build:
+  mpicxx -O2 -std=c++17 -o tsp_island     tsp_island.cpp      # parallel (MPI)
+  mpicxx -O2 -std=c++17 -o tsp_sequential tsp_sequential.cpp  # sequential baseline
+  mpicxx -O2 -std=c++17 -o test_ga_core   test_ga_core.cpp    # unit test
+
+Run (single machine, 3 islands, ring migration):
+  mpirun --oversubscribe -np 3 ./tsp_island cities_50.txt --gens 500 --migrate 20
+
+Run on a cluster:
+  mpirun --hostfile hosts -np 3 ./tsp_island cities_50.txt --gens 500 --migrate 20
+
+Files:
+  ga_core.hpp        GA operators (fitness, OX crossover, mutation, tournament)
+  local_search.hpp   2-opt local search (memetic option)
+  tsp_island.cpp     MPI island-model parallel GA (main deliverable)
+  tsp_sequential.cpp single-process baseline
+  test_*.cpp         unit tests

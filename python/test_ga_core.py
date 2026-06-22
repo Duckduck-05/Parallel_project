@@ -56,6 +56,26 @@ def test_evolve_improves():
     assert history[-1] <= history[0]  # khong te di theo thoi gian
 
 
+def test_evolve_history_monotone():
+    # Voi elitism + chon loc dung, do dai tot nhat KHONG BAO GIO tang qua cac the he.
+    rng = np.random.default_rng(11)
+    coords = rng.random((20, 2))
+    D = ga.distance_matrix(coords)
+    _, _, history = ga.evolve(D, pop_size=60, generations=120, rng=rng)
+    for i in range(len(history) - 1):
+        assert history[i + 1] <= history[i] + 1e-9   # don dieu khong tang
+
+
+def test_evolve_reaches_optimum_square():
+    # 4 thanh pho o 4 goc hinh vuong -> nghiem toi uu = chu vi = 4.0.
+    # GA da sua loi chon loc phai tim ra nghiem nay (du tournament chon dung ca the).
+    coords = np.array([[0, 0], [0, 1], [1, 1], [1, 0]], dtype=float)
+    D = ga.distance_matrix(coords)
+    rng = np.random.default_rng(3)
+    _, best, _ = ga.evolve(D, pop_size=40, generations=80, rng=rng)
+    assert abs(best - 4.0) < 1e-9      # tim dung chu vi toi uu
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:

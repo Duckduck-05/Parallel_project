@@ -66,8 +66,11 @@ int main(int argc, char** argv) {
                          recvbuf.data(), n, MPI_INT, left, 0,
                          MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             int wi = (int)(std::max_element(len.begin(), len.end()) - len.begin());
-            pop[wi] = recvbuf;                 // thay ca the te nhat
-            len[wi] = tour_length(pop[wi], D, n);
+            double in_len = tour_length(recvbuf, D, n);
+            if (in_len < len[wi]) {            // chi nhan neu khach tot hon ca the te nhat
+                pop[wi] = recvbuf;             // thay ca the te nhat
+                len[wi] = in_len;
+            }
         }
     }
 

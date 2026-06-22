@@ -26,37 +26,47 @@ inline void two_opt(Tour& t, const std::vector<double>& D, int n, int max_iter =
         if (!two_opt_once(t, D, n)) break;
 }
 
-// Or-opt: dời 1 thành phố sang vị trí tốt hơn (seg_len = 1, bổ trợ 2-opt).
-inline bool or_opt_once(Tour& t, const std::vector<double>& D, int n) {
+// Or-opt: dời 1 đoạn liên tiếp dài seg_len sang vị trí tốt hơn (bổ trợ 2-opt).
+// Cùng logic với python/local_search.py: đoạn lấy vòng (wrap), chèn lại KHÔNG đảo.
+inline bool or_opt_once(Tour& t, const std::vector<double>& D, int n, int seg_len) {
     for (int i = 0; i < n; i++) {
-        int prev = t[(i - 1 + n) % n], cur = t[i], nxt = t[(i + 1) % n];
-        double removed = D[prev * n + cur] + D[cur * n + nxt] - D[prev * n + nxt];
-        for (int j = 0; j < n; j++) {
-            if (j == i || j == (i - 1 + n) % n) continue;
-            int a = t[j], b = t[(j + 1) % n];
-            double added = D[a * n + cur] + D[cur * n + b] - D[a * n + b];
+        Tour seg(seg_len);
+        for (int k = 0; k < seg_len; k++) seg[k] = t[(i + k) % n];
+        int prev = t[(i - 1 + n) % n], nxt = t[(i + seg_len) % n];
+        double removed = D[prev * n + seg[0]] + D[seg[seg_len - 1] * n + nxt]
+                         - D[prev * n + nxt];
+        // rest = cac thanh pho khong nam trong seg (xet theo gia tri thanh pho)
+        std::vector<char> in_seg(n, 0);
+        for (int c : seg) in_seg[c] = 1;
+        Tour rest;
+        rest.reserve(n - seg_len);
+        for (int k = 0; k < n; k++) if (!in_seg[t[k]]) rest.push_back(t[k]);
+        int m = (int)rest.size();
+        for (int p = 0; p < m; p++) {
+            int a = rest[p], b = rest[(p + 1) % m];
+            double added = D[a * n + seg[0]] + D[seg[seg_len - 1] * n + b] - D[a * n + b];
             if (added - removed < -1e-9) {
                 Tour nt;
                 nt.reserve(n);
-                for (int k = 0; k < n; k++) {
-                    if (k == i) continue;
-                    nt.push_back(t[k]);
-                    if (t[k] == a) nt.push_back(cur);
-                }
-                if ((int)nt.size() == n) { t.swap(nt); return true; }
+                for (int k = 0; k <= p; k++) nt.push_back(rest[k]);
+                for (int c : seg) nt.push_back(c);
+                for (int k = p + 1; k < m; k++) nt.push_back(rest[k]);
+                t.swap(nt);
+                return true;
             }
         }
     }
     return false;
 }
 
-inline void or_opt(Tour& t, const std::vector<double>& D, int n, int max_iter = 200) {
+inline void or_opt(Tour& t, const std::vector<double>& D, int n,
+                   int seg_len = 1, int max_iter = 200) {
     for (int it = 0; it < max_iter; it++)
-        if (!or_opt_once(t, D, n)) break;
+        if (!or_opt_once(t, D, n, seg_len)) break;
 }
 
-// Đánh bóng cá thể: 2-opt rồi Or-opt.
+// Đánh bóng cá thể: 2-opt rồi Or-opt (seg_len=2, khớp python/local_search.py).
 inline void polish(Tour& t, const std::vector<double>& D, int n) {
     two_opt(t, D, n);
-    or_opt(t, D, n);
+    or_opt(t, D, n, 2);
 }

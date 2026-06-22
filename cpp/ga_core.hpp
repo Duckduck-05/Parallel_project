@@ -76,7 +76,7 @@ inline Tour order_crossover(const Tour& p1, const Tour& p2, std::mt19937& rng) {
     int j = 0;
     for (int i = 0; i < n; i++) {
         if (child[i] != -1) continue;
-        while (taken[p2[j]]) j++;
+        while (j < n && taken[p2[j]]) j++;   // chặn tràn mảng nếu p2 không phải hoán vị hợp lệ
         child[i] = p2[j++];
     }
     return child;
