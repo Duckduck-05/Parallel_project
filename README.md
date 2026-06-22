@@ -122,6 +122,11 @@ counts) work, and pins the launch agent so all nodes use the same OpenMPI build.
 Install the plotting dependencies once: `pip install -r requirements.txt` (numpy + matplotlib;
 **mpi4py is not needed**).
 
+On Windows, double-click **`demo.bat`** for a one-click interactive demo: it builds + runs the
+C++ solver in WSL (streaming `--live`) and opens a native window that replays the search from
+generation 1 (messy tangle -> clean route). The viewer replays at `--step` generations per
+frame, so it works even though C++ converges in ~1 second.
+
 ```bash
 # Live demo (launches the C++ solver locally and animates it):
 python3 python/live_view.py run data/cities_30.txt --islands 4 --gens 400 --sync 20

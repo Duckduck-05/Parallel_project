@@ -146,15 +146,16 @@ class StreamTailer:
     """Follows a JSONL stream file and animates it. Optionally owns a subprocess
     (the C++ solver) that writes the stream."""
 
-    def __init__(self, stream_path, coords, title_mode, interval, proc=None):
+    def __init__(self, stream_path, coords, title_mode, interval, step=5, proc=None):
         self.stream = stream_path
         self.canvas = LiveCanvas(coords, title_mode=title_mode)
         self.interval = interval
+        self.step = max(1, step)          # records advanced per tick (playback pace)
         self.proc = proc
         self.pos = 0
-        self.hist = []
+        self.buf = []                     # every record seen, in order
+        self.idx = 0                      # playback cursor -> we replay from gen 1, not the latest
         self.t0 = time.perf_counter()
-        self.done = False
         self.last_gen = 0
 
     def _read_new(self):
@@ -173,21 +174,22 @@ class StreamTailer:
         return out
 
     def _update(self, _frame):
-        recs = self._read_new()
-        last = None
-        for rec in recs:
-            self.hist.append(rec["best_len"])
-            self.last_gen = rec.get("gen", self.last_gen)
-            if rec.get("done"):
-                self.done = True
-            last = rec
-        if last is not None and "tour" in last:
-            self.canvas.draw_route(np.asarray(last["tour"], dtype=int))
-        if self.hist:
-            self.canvas.draw_conv({"global best": self.hist})
-            extra = "| DONE" if self.done else "| running..."
-            self.canvas.set_title(self.last_gen, self.hist[-1],
-                                  time.perf_counter() - self.t0, extra=extra)
+        self.buf.extend(self._read_new())     # ingest any new records (stream may still be growing)
+        if not self.buf:
+            return                            # nothing written yet -> wait
+        # Advance the playback cursor a few records per tick so we WATCH the search
+        # progress from the first generation, instead of snapping to the latest frame.
+        self.idx = min(self.idx + self.step, len(self.buf) - 1)
+        rec = self.buf[self.idx]
+        if "tour" in rec:
+            self.canvas.draw_route(np.asarray(rec["tour"], dtype=int))
+        hist = [r["best_len"] for r in self.buf[:self.idx + 1]]
+        self.canvas.draw_conv({"global best": hist})
+        caught_up = self.idx >= len(self.buf) - 1
+        done = caught_up and self.buf[-1].get("done", False)
+        extra = "| DONE" if done else ("| running..." if caught_up else "| replaying search...")
+        self.canvas.set_title(rec.get("gen", self.idx), rec["best_len"],
+                              time.perf_counter() - self.t0, extra=extra)
 
     def run(self, save=None):
         anim = FuncAnimation(self.canvas.fig, self._update,
@@ -225,7 +227,7 @@ def cmd_run(args):
     mode = f"{args.islands} islands, " + (
         f"sync every {args.sync} gens" if args.sync else "NO sharing")
     tailer = StreamTailer(stream, coords, title_mode="run/C++", interval=args.interval,
-                          proc=proc)
+                          step=args.step, proc=proc)
     print(f"Streaming from {stream}  (close the window to stop)")
     tailer.run(save=args.save)
 
@@ -236,7 +238,7 @@ def cmd_run(args):
 def cmd_tail(args):
     coords = read_cities(args.cities)
     tailer = StreamTailer(args.stream, coords, title_mode="tail/MPI",
-                          interval=args.interval)
+                          interval=args.interval, step=args.step)
     print(f"Tailing: {args.stream}  (Ctrl+C to quit)")
     tailer.run(save=args.save)
 
@@ -254,7 +256,8 @@ def main():
     r.add_argument("--migrants", type=int, default=3, help="individuals recombined with the global best per sync")
     r.add_argument("--twoopt", type=int, default=0, help="2-opt period (Memetic); 0 = off")
     r.add_argument("--seed", type=int, default=42)
-    r.add_argument("--interval", type=int, default=200, help="ms between stream reads")
+    r.add_argument("--interval", type=int, default=60, help="ms between animation frames")
+    r.add_argument("--step", type=int, default=5, help="generations advanced per frame (lower = slower replay)")
     r.add_argument("--binary", default=None, help="path to the C++ solver (default: cpp/tsp_island)")
     r.add_argument("--save", default=None, help="save a video (mp4/gif) instead of showing")
     r.set_defaults(func=cmd_run)
@@ -262,7 +265,8 @@ def main():
     t = sub.add_parser("tail", help="follow the stream file of a real MPI run")
     t.add_argument("stream", help="JSONL file written by tsp_island --live")
     t.add_argument("cities")
-    t.add_argument("--interval", type=int, default=200, help="ms between file reads")
+    t.add_argument("--interval", type=int, default=60, help="ms between animation frames")
+    t.add_argument("--step", type=int, default=5, help="generations advanced per frame (lower = slower replay)")
     t.add_argument("--save", default=None, help="save a video (rarely used in tail mode)")
     t.set_defaults(func=cmd_tail)
 
