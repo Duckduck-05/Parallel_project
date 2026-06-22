@@ -46,7 +46,7 @@ what you are doing. Each lives in its own folder.
 | You want to...                         | Where                              | Setup files                          | Build / run with |
 |----------------------------------------|------------------------------------|--------------------------------------|------------------|
 | Develop / run on one machine           | A Linux box, or **WSL** on Windows | `cpp/Makefile`, `cpp/BUILD.txt`      | `cd cpp && make`, then `mpirun -np N ./cpp/tsp_island ...` |
-| Run the real multi-node experiments    | 4 Ubuntu nodes on a LAN            | `cluster/*.sh`, `cluster/hosts*`     | `cluster/01_install.sh` -> ... -> `cluster/run_cluster.sh` |
+| Run the real multi-node experiments    | 4 Ubuntu nodes on a LAN            | `cluster/*.sh`, `cluster/hosts*` **+ the `cpp/` build on every node** | `cluster/01_install.sh` -> build `cpp/` on each node -> `cluster/run_cluster.sh` |
 | Only view results / demos / make plots | Any OS (Windows native is fine)    | `requirements.txt`                   | `pip install -r requirements.txt`, then `python3 python/...` |
 
 ### 1. C++ build - the solver (`cpp/`)
@@ -90,9 +90,12 @@ See `cpp/BUILD.txt` for the manual one-off compile commands.
 
 ### 3. Cluster - 4 nodes (`cluster/`)
 
-For the real multi-node experiments. Full requirements + step-by-step are in
-[Cluster (4 nodes, LAN)](#cluster-4-nodes-lan) below. On the nodes themselves (Ubuntu) this is
-**native Linux - no WSL**; WSL is only the Windows-dev stand-in for a Linux box.
+For the real multi-node experiments. This setup **builds on setup step 1**: the C++ binary is
+not portable, so **every node must build `cpp/` itself** (`cd cpp && make`) after the code is
+synced - the launcher does not compile the remote nodes for you. Full requirements +
+step-by-step are in [Cluster (4 nodes, LAN)](#cluster-4-nodes-lan) below. On the nodes
+themselves (Ubuntu) this is **native Linux - no WSL**; WSL is only the Windows-dev stand-in
+for a Linux box.
 
 ### 4. Visualization deps - Python (`requirements.txt`)
 
@@ -156,7 +159,11 @@ Clock sync, internet access, and identical hardware are *not* required.
    Changing the LAN/IPs later means editing only this mapping.
 3. Set up password-less ssh (`cluster/02_ssh_setup.sh`) and sync the code
    (`cluster/03_sync_code.sh`).
-4. Launch from node1:
+4. **Build the solver on every node** - the binary is not portable, so on each node run
+   `cd cpp && make` (the syncing in step 3 copies source, not a working binary). Tip: the
+   launcher can do all nodes at once, e.g.
+   `mpirun --hostfile cluster/hosts -N 1 bash -c 'cd ~/parallel-tsp/cpp && make'`.
+5. Launch from node1:
 
 ```bash
 bash cluster/run_cluster.sh cluster/hosts 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20
