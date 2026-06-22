@@ -193,7 +193,7 @@ def main():
         s.add_argument("--hostfile", default=None, help="use the cluster launcher; empty = one machine")
         if name == "size":
             s.add_argument("--procs", type=int, default=4)
-            s.add_argument("--sizes", type=int, nargs="+", default=[50, 100, 200, 400, 800])
+            s.add_argument("--sizes", type=int, nargs="+", default=[100, 200, 400, 800, 1600, 3200])
         elif name == "gran":
             s.add_argument("--procs", type=int, default=4)
             s.add_argument("--size", type=int, default=200)
