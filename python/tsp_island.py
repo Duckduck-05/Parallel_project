@@ -30,6 +30,10 @@ def main():
     ap.add_argument("--out", default=None, help="luu tour tot nhat toan cuc")
     ap.add_argument("--stats", default=None,
                     help="luu CSV thong ke moi tien trinh (rank,compute_s,comm_s,total_s) de ve bieu do bao cao")
+    ap.add_argument("--auto-balance", action="store_true",
+                    help="do toc do tung may luc khoi dong roi chia population ti le nghich "
+                         "voi thoi gian do duoc (may nhanh nhan population lon hon), giu tong "
+                         "population khong doi. Mac dinh tat de khong anh huong benchmark cu.")
     args = ap.parse_args()
 
     comm = MPI.COMM_WORLD
@@ -45,7 +49,40 @@ def main():
     left = (rank - 1) % size      # hàng xóm trái trong vòng ring
     right = (rank + 1) % size     # hàng xóm phải
 
-    pop = [ga.random_tour(n, rng) for _ in range(args.pop)]
+    pop_size = args.pop
+    if args.auto_balance and size > 1:
+        # --- Micro-benchmark: do toc do may bang 1 vai the he GA tren quan the nho ---
+        bench_pop = [ga.random_tour(n, rng) for _ in range(30)]
+        bench_len = [ga.tour_length(t, D) for t in bench_pop]
+        t_bench = MPI.Wtime()
+        for _ in range(5):
+            order = np.argsort(bench_len)
+            bench_pop = [bench_pop[i] for i in order]
+            bench_len = [bench_len[i] for i in order]
+            new_bp = bench_pop[:1]
+            while len(new_bp) < 30:
+                p1 = ga.tournament_select(bench_pop, bench_len, 5, rng)
+                p2 = ga.tournament_select(bench_pop, bench_len, 5, rng)
+                child = ga.order_crossover(p1, p2, rng)
+                ga.mutate(child, 0.3, rng)
+                new_bp.append(child)
+            bench_pop = new_bp
+            bench_len = [ga.tour_length(t, D) for t in bench_pop]
+        my_time = max(MPI.Wtime() - t_bench, 1e-6)  # tranh chia cho 0
+        all_times = comm.allgather(my_time)
+        # population ti le nghich voi thoi gian (may nhanh -> pop lon), tong khong doi
+        speed = [1.0 / t for t in all_times]
+        total_speed = sum(speed)
+        total_pop = args.pop * size
+        min_pop = max(20, args.pop // 4)   # san duoi, tranh quan the qua nho
+        raw = [max(min_pop, round(total_pop * s / total_speed)) for s in speed]
+        pop_size = raw[rank]
+        if rank == 0:
+            print(f"Auto-balance: thoi gian benchmark moi dao = "
+                  f"{[round(t, 4) for t in all_times]}", flush=True)
+            print(f"Auto-balance: population moi dao         = {raw}", flush=True)
+
+    pop = [ga.random_tour(n, rng) for _ in range(pop_size)]
     lengths = [ga.tour_length(t, D) for t in pop]
     history = []
 
@@ -64,7 +101,7 @@ def main():
         pop = [pop[i] for i in order]
         lengths = [lengths[i] for i in order]   # giu lengths khop voi pop sau khi sap xep
         new_pop = pop[:1]
-        while len(new_pop) < args.pop:
+        while len(new_pop) < pop_size:
             p1 = ga.tournament_select(pop, lengths, 5, rng)
             p2 = ga.tournament_select(pop, lengths, 5, rng)
             child = ga.order_crossover(p1, p2, rng)
@@ -120,22 +157,23 @@ def main():
     compute_time = elapsed - comm_time
     # makespan = thoi gian chay that su cua chuong trinh = max(elapsed) tren cac dao
     makespan = comm.allreduce(elapsed, op=MPI.MAX)
-    per_rank = comm.gather((rank, compute_time, comm_time, elapsed), root=0)
+    per_rank = comm.gather((rank, compute_time, comm_time, elapsed, pop_size), root=0)
 
     if rank == 0:
         mode = "co di cu" if args.migrate > 0 else "KHONG di cu"
         # tong/trung binh thoi gian truyen thong tren cac dao
         comm_avg = sum(r[2] for r in per_rank) / len(per_rank)
+        pop_label = str(args.pop) if not args.auto_balance else "auto (xem bang duoi)"
         print(f"So dao (process): {size}  |  che do: {mode}")
-        print(f"So thanh pho     : {n}, the he: {args.gens}, quan the/dao: {args.pop}")
+        print(f"So thanh pho     : {n}, the he: {args.gens}, quan the/dao: {pop_label}")
         print(f"Do dai tot nhat  : {global_best:.2f}  (tu dao #{best_rank})")
         print(f"Thoi gian        : {makespan:.2f}s")        # makespan = max tren cac dao
         print(f"Thoi gian comm   : {comm_avg:.4f}s (trung binh/dao)")
         print(f"Thoi gian compute: {makespan - comm_avg:.4f}s (uoc luong = makespan - comm)")
         # bang chi tiet tung tien trinh (de kiem tra can bang tai - granularity)
-        print("rank   compute_s   comm_s    total_s")
-        for r, cpu, cm, tot in sorted(per_rank):
-            print(f"{r:>4}   {cpu:8.3f}   {cm:7.4f}   {tot:7.3f}")
+        print("rank   compute_s   comm_s    total_s   pop")
+        for r, cpu, cm, tot, psz in sorted(per_rank):
+            print(f"{r:>4}   {cpu:8.3f}   {cm:7.4f}   {tot:7.3f}   {psz}")
         print(f"Lo trinh         : {np.asarray(best_tour).tolist()}")
         if args.out:
             np.savetxt(args.out, np.asarray(best_tour), fmt="%d")
@@ -149,8 +187,8 @@ def main():
                 w = _csv.writer(f)
                 w.writerow(["rank", "n_cities", "procs", "gens", "pop",
                             "compute_s", "comm_s", "total_s", "makespan_s", "best_len"])
-                for r, cpu, cm, tot in sorted(per_rank):
-                    w.writerow([r, n, size, args.gens, args.pop,
+                for r, cpu, cm, tot, psz in sorted(per_rank):
+                    w.writerow([r, n, size, args.gens, psz,
                                 f"{cpu:.4f}", f"{cm:.4f}", f"{tot:.4f}",
                                 f"{makespan:.4f}", f"{global_best:.2f}"])
             print(f"Da luu thong ke -> {args.stats}")
