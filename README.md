@@ -46,7 +46,7 @@ what you are doing. Each lives in its own folder.
 | You want to...                         | Where                              | Setup files                          | Build / run with |
 |----------------------------------------|------------------------------------|--------------------------------------|------------------|
 | Develop / run on one machine           | A Linux box, or **WSL** on Windows | `cpp/Makefile`, `cpp/BUILD.txt`      | `cd cpp && make`, then `mpirun -np N ./cpp/tsp_island ...` |
-| Run the real multi-node experiments    | 4 Ubuntu nodes on a LAN            | `cluster/*.sh`, `cluster/hosts*` **+ the `cpp/` build on every node** | `cluster/01_install.sh` -> build `cpp/` on each node -> `cluster/run_cluster.sh` |
+| Run the real multi-node experiments    | 4 Ubuntu nodes on a LAN            | `cluster/*.sh`, `cluster/hosts*` **+ the `cpp/` build on every node** | `00_build_openmpi.sh` -> `01_install.sh` -> build `cpp/` on each node -> `run_cluster.sh` |
 | Only view results / demos / make plots | Any OS (Windows native is fine)    | `requirements.txt`                   | `pip install -r requirements.txt`, then `python3 python/...` |
 
 ### 1. C++ build - the solver (`cpp/`)
@@ -153,7 +153,13 @@ Clock sync, internet access, and identical hardware are *not* required.
 
 ### Steps
 
-1. On every node: `bash cluster/01_install.sh` (OpenMPI, build tools, rsync, ssh).
+1. On every node, in order:
+   - `bash cluster/00_build_openmpi.sh` - source-builds the **pinned** OpenMPI 5.0.9 into
+     `/opt/openmpi-5.0.9`. This is the deterministic step: it guarantees every node has the
+     *exact same* MPI runtime (apt versions differ across Ubuntu releases and cause PMIx
+     mismatches). Takes a few minutes; idempotent (skips if already built).
+   - `bash cluster/01_install.sh` - everything else (build tools, ssh, rsync, numpy +
+     matplotlib). It does **not** install OpenMPI - that is pinned by step above.
 2. Map node names to IPs: copy `cluster/hosts.sample`, replace the IPs with your real ones
    (`hostname -I` on each box), and append the four lines to `/etc/hosts` on **every** node.
    Changing the LAN/IPs later means editing only this mapping.
