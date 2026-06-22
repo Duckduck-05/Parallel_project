@@ -78,6 +78,30 @@ less diversity), `--patience` (stop after this many stalled generations, `0` = o
 
 ## Cluster (4 nodes, LAN)
 
+### Requirements for a stable OpenMPI connection
+
+For ranks on different machines to connect and stay connected, every node needs:
+
+- **A shared LAN with mutual reachability** - all nodes on the same network, able to `ping`
+  each other directly. (Internet alone does not work: MPI opens node-to-node TCP on random
+  high ports, which NAT/firewalls block.)
+- **Password-less SSH** (key-based) from the launcher (node1) to every node - mpirun starts
+  remote ranks over SSH.
+- **The same OpenMPI version at the same path** on every node (here 5.0.9 in
+  `/opt/openmpi-5.0.9`); a version mismatch causes PMIx errors.
+- **The same Linux username** on each node (mpirun SSHes as the same user by default).
+- **The same `/etc/hosts` IP -> name mapping** on every node (template: `cluster/hosts.sample`).
+- **The same code on the same branch at the same path** (`~/parallel-tsp`), rebuilt on each
+  node - the compiled binary is not portable, so run `cd cpp && make` on every node. The data
+  files must also exist on every node at the same relative path (`cluster/03_sync_code.sh`
+  syncs the tree).
+- **The firewall open between nodes** (or disabled on a trusted LAN), so MPI's ports are not
+  blocked - otherwise mpirun hangs.
+
+Clock sync, internet access, and identical hardware are *not* required.
+
+### Steps
+
 1. On every node: `bash cluster/01_install.sh` (OpenMPI, build tools, rsync, ssh).
 2. Map node names to IPs: copy `cluster/hosts.sample`, replace the IPs with your real ones
    (`hostname -I` on each box), and append the four lines to `/etc/hosts` on **every** node.
