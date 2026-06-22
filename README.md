@@ -19,7 +19,7 @@ parallel-tsp/
 ```bash
 bash cluster/01_install.sh                       # cai OpenMPI + thu vien
 cd python
-python3 -m pytest test_ga_core.py -v             # test loi GA (5 PASS)
+python3 -m pytest test_ga_core.py -v             # test loi GA (7 PASS)
 mpirun --oversubscribe -np 3 python3 tsp_island.py ../data/cities_50.txt --gens 500 --migrate 20
 ```
 
@@ -35,11 +35,46 @@ mpirun --oversubscribe -np 3 python3 tsp_island.py ../data/cities_50.txt --gens 
 mpirun --hostfile cluster/hosts -np 3 \
     python3 python/tsp_island.py data/cities_50.txt --gens 500 --migrate 20
 ```
+> Cụm 4 máy (mỗi thành viên 1 node): dùng `-np 4` và thêm dòng `node4 slots=2` vào
+> `cluster/hosts`.
+
+## (Tùy chọn) Cụm các máy ở xa qua Tailscale
+Nếu các máy **không cùng WiFi** (khác nhà/khác mạng), có thể nối chúng bằng VPN overlay
+**Tailscale** — mỗi máy có IP `100.x` cố định xuyên NAT, MPI chạy y như trong LAN. Vẫn tự
+cài OpenMPI/SSH/hostfile như bình thường (chỉ thay lớp mạng). Hướng dẫn:
+- `docs/TASK_remote_tailscale_guide.md` — dựng cụm từ xa.
+- `docs/TEAM_wsl_tailscale_setup.md` — gửi cho thành viên cài WSL + Tailscale.
+
+> ⚠️ **Hỏi giảng viên trước.** Thuê server đám mây (GCP/AWS) bị trừ điểm vì "dựng cụm là
+> một phần lập trình". Tailscale **khác** (vẫn dùng máy của mình, tự dựng cụm), nhưng nên
+> xác nhận với giảng viên cho chắc.
 
 ## Bản C++
 ```bash
 cd cpp && mpicxx -O2 -o tsp_island tsp_island.cpp
 mpirun --hostfile ../cluster/hosts -np 3 ./tsp_island ../data/cities_50.txt --gens 500 --migrate 20
+```
+
+## Trực quan hóa THỜI GIAN THỰC (`python/live_view.py`)
+Xem GA tiến hóa **trực tiếp**: trái = lộ trình tốt nhất vẽ lại mỗi thế hệ, phải = đồ thị
+hội tụ lớn dần (1 đường/đảo + đường đỏ đậm = tốt nhất toàn cục, vạch xanh = thời điểm di cư).
+
+**Chế độ 1 — demo trên 1 máy (KHÔNG cần MPI):** chạy GA nhiều đảo ngay trong tiến trình.
+```bash
+cd python
+python3 live_view.py run ../data/cities_30.txt --islands 4 --gens 400 --migrate 20
+# tuy chon: --twoopt 25 (Memetic) | --every 2 (muot hon) | --save demo.gif | --save-final last.png
+```
+
+**Chế độ 2 — bám đuôi lần chạy MPI THẬT trên cụm:** `tsp_island.py --live` để rank 0 ghi
+luồng JSONL (1 dòng/thế hệ, **chỉ IO trên rank 0, không thêm giao tiếp MPI** nên không làm
+sai benchmark); `live_view.py tail` đọc và vẽ trực tiếp.
+```bash
+# cua so 1 (may chu / rank 0):
+mpirun --hostfile ../cluster/hosts -np 4 python3 tsp_island.py ../data/cities_50.txt \
+       --gens 500 --migrate 20 --live ../results/stream.jsonl
+# cua so 2:
+python3 live_view.py tail ../results/stream.jsonl ../data/cities_50.txt
 ```
 
 ---
@@ -61,7 +96,7 @@ mpirun --hostfile ../cluster/hosts -np 3 ./tsp_island ../data/cities_50.txt --ge
 - Thêm **tối ưu cục bộ 2-opt đầy đủ** trên mỗi đảo (vòng lặp cải thiện cạnh).
 - Thêm cấu trúc di cư **lưới 2D** hoặc **sao** ngoài ring (so sánh trong report).
 - Thêm bản đọc file TSPLIB chuẩn + so sánh với nghiệm tối ưu đã biết.
-- Thêm script vẽ **animation** quá trình hội tụ (matplotlib FuncAnimation → GIF).
+- ✅ **Đã làm:** trực quan hóa real-time + animation (matplotlib FuncAnimation) — `python/live_view.py`.
 
 ---
 
@@ -71,7 +106,7 @@ mpirun --hostfile ../cluster/hosts -np 3 ./tsp_island ../data/cities_50.txt --ge
 - [ ] TV2: giải thích OX crossover bảo toàn hoán vị thế nào, tournament selection.
 - [ ] TV3: giải thích `Sendrecv` tránh deadlock, `MINLOC` lấy rank đảo tốt nhất.
 - [ ] TV4: giải thích đồ thị hội tụ + biểu đồ speedup, định luật Amdahl.
-- [ ] Cả nhóm: demo chạy được trên 3 máy (video) + nộp report PDF.
+- [ ] Cả nhóm: demo chạy được trên 3–4 máy thật (video) + nộp report PDF.
 - [ ] Điền Google Sheet: tăng group-id +1, thêm màu mới cho nhóm.
 
 > 🔒 **Bảo mật:** cụm chỉ bảo vệ bằng khóa SSH trên WiFi nội bộ, không có xác thực tầng

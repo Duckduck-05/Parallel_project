@@ -109,25 +109,6 @@ bash cluster/run_cluster.sh cluster/hosts.cur 4 \
 
 Fewer nodes online? Edit `cluster/hosts.cur` (comment the offline ones) and use that `-np`.
 
-`cluster/hosts.cur` intentionally orders the full cluster as `node1, node2, node4, node3`.
-The TSP programs migrate best tours in a ring between neighboring ranks, so the default
-`node1, node2, node3, node4` order makes node2 exchange directly with node3. If
-`node1+2+4` and `node1+3+4` work but all four fail when both node2 and node3 are present,
-that direct node2<->node3 route is the bad edge; keeping node4 between them uses only the
-known-good links `1-2`, `2-4`, `4-3`, and `3-1`.
-
-To separate launch problems from migration/network-edge problems, first run with migration
-disabled:
-
-```bash
-bash cluster/run_cluster.sh cluster/hosts.cur 4 \
-    python3 python/tsp_island.py data/cities_50.txt --gens 50 --migrate 0
-```
-
-If `--migrate 0` works but `--migrate 20` fails only in the `node2,node3` adjacency order,
-the MPI program is launching correctly and the failing part is the direct rank-to-rank
-node2<->node3 migration path.
-
 ---
 
 ## Platform notes / gotchas
