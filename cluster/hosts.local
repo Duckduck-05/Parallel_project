@@ -1,0 +1,7 @@
+# Local simulation of a multi-node cluster: 4 "islands" all on this machine.
+# Use it to exercise the hostfile + MPI launch path WITHOUT real nodes, before the
+# 4-node experiments. Each slot becomes one rank/island on localhost.
+#   mpirun --hostfile cluster/hosts.local -np 4 ./cpp/tsp_island data/cities_50.txt --sync 20
+# Note: real remote nodes need reachable IPs + password-less ssh; fake IPs in /etc/hosts
+# cannot actually connect, so localhost is the only way to test the launch path locally.
+localhost slots=4
