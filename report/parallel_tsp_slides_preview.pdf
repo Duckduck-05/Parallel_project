@@ -1,0 +1,428 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R 28 0 R 30 0 R 32 0 R 34 0 R 36 0 R 38 0 R 40 0 R 42 0 R 44 0 R 46 0 R 48 0 R 50 0 R 52 0 R] /Count 25 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 46 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (1. Title) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 483 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (2. Project Goal) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Solve the Travelling Salesman Problem with a heuristic method.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Parallelize the search with MPI on a multi-node cluster.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- Measure correctness, input-size behavior, granularity, load balance, and speedup.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- Keep the solver in C++; use Python only for visualization and plotting.) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 514 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (3. Travelling Salesman Problem) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Input: N cities with 2D coordinates.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Output: one closed tour visiting every city exactly once.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- Objective: minimize total Euclidean route length.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (L\(T\) = _i=0^N-1 d\(t_i, t_\(i+1\) N\)) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (TSP is NP-hard; exact brute force is only practical for very small N.) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 645 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (4. Repository Layout) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (Folder & Purpose \\\\) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (cpp/ & GA core, local search, MPI solver, tests \\\\) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (python/ & visualization, validation, experiments \\\\) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (data/ & city coordinate files and generator \\\\) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (cluster/ & OpenMPI, SSH, sync, launch scripts \\\\) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (results/ & CSV files, figures, generated outputs \\\\) Tj ET
+BT /F1 15 Tf 60.00 296.00 Td (report/ & report and presentation files \\\\) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 528 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (5. Main C++ Components) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- ga_core.hpp: distance matrix, tour length, selection, OX crossover, mutation.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- local_search.hpp: 2-opt, Or-opt, optional memetic polish.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- tsp_island.cpp: MPI island-model solver.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- tsp_sequential.cpp: sequential baseline.) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- test_*.cpp: unit tests for operators and local search.) Tj ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 501 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (6. Tour Representation) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- One individual is a permutation of city indices.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Example for 6 cities: [3, 0, 5, 1, 4, 2].) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- The last city connects back to the first city.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- A valid tour must contain each index exactly once.) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (The fitness value is total tour length; smaller is better.) Tj ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 610 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (7. Sequential GA Baseline) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Generate an initial population of random tours.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Evaluate all tour lengths.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- Keep the best individual by elitism.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- Select parents by tournament selection.) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- Create children with order crossover.) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (- Apply swap and segment-reversal mutation.) Tj ET
+BT /F1 15 Tf 60.00 296.00 Td (- Repeat for a fixed number of generations.) Tj ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 616 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (8. Genetic Operators) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Tournament selection: choose the best among k=5 sampled individuals.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Order crossover: preserve a segment from one parent and fill the rest using the) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (order of another parent.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- Mutation:) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- random city swap,) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (- random segment reversal.) Tj ET
+BT /F1 15 Tf 60.00 296.00 Td (- Elitism: copy the best local tour into the next generation.) Tj ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 438 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (9. Local Search) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Optional memetic step controlled by -twoopt.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- 2-opt removes edge crossings by reversing a segment.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- Or-opt moves a short segment to a better insertion position.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- Applied only periodically to the best local individual to limit cost.) Tj ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 23 0 R >>
+endobj
+23 0 obj
+<< /Length 520 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (10. Parallelism Level) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (Coarse-grained task-level parallelism.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Each MPI rank runs one independent GA population.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- The city data and distance matrix are replicated on every rank.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- Different ranks use different random seeds and explore different regions.) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (Hybrid task and exploratory decomposition.) Tj ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 25 0 R >>
+endobj
+25 0 obj
+<< /Length 524 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (11. Why Exploratory Decomposition?) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- A TSP tour is a global permutation, so splitting cities directly is not natural.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- GA search is stochastic; multiple populations can search different areas.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- Islands can run mostly independently and communicate only occasionally.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- This creates coarse granularity and reduces communication frequency.) Tj ET
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 27 0 R >>
+endobj
+27 0 obj
+<< /Length 422 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (12. Process Mapping) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- One-dimensional mapping:) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Each rank owns one population and its fitness array.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- Cluster hostfile maps ranks round-robin across four machines.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- Up to 48 ranks were used, limited by the common physical-core count.) Tj ET
+endstream
+endobj
+28 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 29 0 R >>
+endobj
+29 0 obj
+<< /Length 681 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (13. Communication Strategy) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Periodic blocking collective communication.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Every -sync generations:) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- each rank finds its local best,) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- MPI_Allreduce\(MINLOC\) finds the global best and owner,) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- owner broadcasts the best tour with MPI_Bcast,) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (- other ranks partially migrate this information into local populations.) Tj ET
+BT /F1 15 Tf 60.00 296.00 Td (- Logical topology: global collective, not ring and not master-slave.) Tj ET
+endstream
+endobj
+30 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 31 0 R >>
+endobj
+31 0 obj
+<< /Length 608 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (14. Partial Global-Best Migration) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- The owner broadcasts the best tour.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Other islands do not clone the full tour.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- They use OX crossover between:) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- the global best tour,) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- a random local mate.) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (- The child replaces one of the worst local individuals.) Tj ET
+BT /F1 15 Tf 60.00 296.00 Td (- Goal: spread good sub-routes while preserving diversity.) Tj ET
+endstream
+endobj
+32 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 33 0 R >>
+endobj
+33 0 obj
+<< /Length 1022 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (15. Parallel Algorithm) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (Initialize MPI) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (Read cities and build distance matrix on every rank) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (Create one random population per rank) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (for each generation:) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (evolve local population) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (optionally polish local best) Tj ET
+BT /F1 15 Tf 60.00 296.00 Td (if generation is a sync point:) Tj ET
+BT /F1 15 Tf 60.00 272.00 Td (local_best = best local tour) Tj ET
+BT /F1 15 Tf 60.00 248.00 Td (global_best, owner = MPI_Allreduce\(MINLOC\)) Tj ET
+BT /F1 15 Tf 60.00 224.00 Td (owner broadcasts global_best tour) Tj ET
+BT /F1 15 Tf 60.00 200.00 Td (non-owner ranks inject partial migrants) Tj ET
+BT /F1 15 Tf 60.00 176.00 Td (update convergence-stop state) Tj ET
+BT /F1 15 Tf 60.00 152.00 Td (Gather final global best and write outputs) Tj ET
+BT /F1 15 Tf 60.00 128.00 Td (Finalize MPI) Tj ET
+endstream
+endobj
+34 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 35 0 R >>
+endobj
+35 0 obj
+<< /Length 623 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (16. Load Balancing) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Default: same population size on every rank.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- This gives approximately equal compute work per rank.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- The cluster run limits ranks per machine by the weakest machine.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- Optional -auto-balance benchmarks local speed and gives faster ranks larger) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (populations.) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (One GA population per process: coarse enough to avoid per-generation communication.) Tj ET
+endstream
+endobj
+36 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 37 0 R >>
+endobj
+37 0 obj
+<< /Length 577 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (17. Instrumentation) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- comm_s: measured time inside MPI calls.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- compute_s: estimated as total time minus communication time.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- makespan_s: maximum elapsed time over all ranks.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- -stats: writes one CSV row per rank.) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- -out: writes final tour and convergence history.) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (- -live: streams JSONL for real-time visualization.) Tj ET
+endstream
+endobj
+38 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 39 0 R >>
+endobj
+39 0 obj
+<< /Length 614 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (18. Correctness Validation) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Unit tests verify:) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- distance matrix correctness,) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- OX crossover produces valid permutations,) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- mutation preserves permutations,) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- local search does not worsen tours.) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (- validate_tour.py independently recomputes route length.) Tj ET
+BT /F1 15 Tf 60.00 296.00 Td (- For N 10, brute force gives the exact optimum for comparison.) Tj ET
+endstream
+endobj
+40 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 41 0 R >>
+endobj
+41 0 obj
+<< /Length 473 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (19. Cluster Setup) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Four machines connected over a LAN.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- OpenMPI 5.0.9 pinned at /opt/openmpi-5.0.9.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- Password-less SSH for remote rank launch.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- Same repository path on every node.) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- Launcher uses -map-by seq -bind-to none for heterogeneous nodes.) Tj ET
+endstream
+endobj
+42 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 43 0 R >>
+endobj
+43 0 obj
+<< /Length 148 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (20. Experiment 1: Runtime vs Input Size) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td ([Figure: ../results/exp_size.png]) Tj ET
+endstream
+endobj
+44 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 45 0 R >>
+endobj
+45 0 obj
+<< /Length 546 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (21. Final N* Selection) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (N & Total \(s\) & Comm \(s\) & Compute \(s\) \\\\) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (1200 & 54.54 & 25.90 & 28.65 \\\\) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (1800 & 86.99 & 34.33 & 52.66 \\\\) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (2400 & 154.27 & 64.05 & 90.22 \\\\) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (- Final choice: N^*=2400, gens*=10500, 48 ranks.) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (- Official repeated run: 145.97s, inside the 120-180s target.) Tj ET
+endstream
+endobj
+46 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 47 0 R >>
+endobj
+47 0 obj
+<< /Length 138 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (22. Experiment 2: Granularity) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td ([Figure: ../results/exp_gran.png]) Tj ET
+endstream
+endobj
+48 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 49 0 R >>
+endobj
+49 0 obj
+<< /Length 452 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (23. Granularity Result) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Run configuration: N^*=2400, gens=10500, 48 ranks.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Each rank owns one island population.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- The measured idle skew is about 1.8\\) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- This is below the 25\\) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (The workload is balanced for this configuration.) Tj ET
+endstream
+endobj
+50 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 51 0 R >>
+endobj
+51 0 obj
+<< /Length 137 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (24. Experiment 3: Speedup) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td ([Figure: ../results/exp_speedup.png]) Tj ET
+endstream
+endobj
+52 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 540] /Resources << /Font << /F1 3 0 R >> >> /Contents 53 0 R >>
+endobj
+53 0 obj
+<< /Length 974 >>
+stream
+BT /F1 24 Tf 45.00 490.00 Td (25. Speedup Result and Conclusion) Tj ET
+BT /F1 15 Tf 60.00 440.00 Td (- Speedup experiment uses 2N^*=4800 cities and fixed total population.) Tj ET
+BT /F1 15 Tf 60.00 416.00 Td (- Speedup improves up to 16 processes, then decreases.) Tj ET
+BT /F1 15 Tf 60.00 392.00 Td (- No-communication speedup is much higher than total speedup.) Tj ET
+BT /F1 15 Tf 60.00 368.00 Td (- The GA computation scales, but repeated collective communication dominates at high) Tj ET
+BT /F1 15 Tf 60.00 344.00 Td (process counts.) Tj ET
+BT /F1 15 Tf 60.00 320.00 Td (- The island model is correct and balanced, but large process counts require larger) Tj ET
+BT /F1 15 Tf 60.00 296.00 Td (problem sizes or less frequent synchronization.) Tj ET
+BT /F1 15 Tf 60.00 272.00 Td (Parallel level: task/exploratory. Mapping: 1D rank-to-island. Communication: blocking) Tj ET
+BT /F1 15 Tf 60.00 248.00 Td (MPI collectives. Load balance: acceptable in the measured run.) Tj ET
+endstream
+endobj
+xref
+0 54
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000288 00000 n 
+0000000358 00000 n 
+0000000484 00000 n 
+0000000579 00000 n 
+0000000705 00000 n 
+0000001238 00000 n 
+0000001364 00000 n 
+0000001928 00000 n 
+0000002056 00000 n 
+0000002752 00000 n 
+0000002880 00000 n 
+0000003459 00000 n 
+0000003587 00000 n 
+0000004139 00000 n 
+0000004267 00000 n 
+0000004928 00000 n 
+0000005056 00000 n 
+0000005723 00000 n 
+0000005851 00000 n 
+0000006340 00000 n 
+0000006468 00000 n 
+0000007039 00000 n 
+0000007167 00000 n 
+0000007742 00000 n 
+0000007870 00000 n 
+0000008343 00000 n 
+0000008471 00000 n 
+0000009203 00000 n 
+0000009331 00000 n 
+0000009990 00000 n 
+0000010118 00000 n 
+0000011192 00000 n 
+0000011320 00000 n 
+0000011994 00000 n 
+0000012122 00000 n 
+0000012750 00000 n 
+0000012878 00000 n 
+0000013543 00000 n 
+0000013671 00000 n 
+0000014195 00000 n 
+0000014323 00000 n 
+0000014522 00000 n 
+0000014650 00000 n 
+0000015247 00000 n 
+0000015375 00000 n 
+0000015564 00000 n 
+0000015692 00000 n 
+0000016195 00000 n 
+0000016323 00000 n 
+0000016511 00000 n 
+0000016639 00000 n 
+trailer << /Size 54 /Root 1 0 R >>
+startxref
+17664
+%%EOF

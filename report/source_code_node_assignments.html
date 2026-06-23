@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phân công đọc và giải thích source code Parallel TSP</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --paper: #ffffff;
+      --ink: #1c2633;
+      --muted: #637083;
+      --line: #d9e0e8;
+      --soft: #eef4f7;
+      --soft2: #fff7ec;
+      --head: #153449;
+      --accent: #16697a;
+      --accent2: #9b5b17;
+      --good: #1f7a4d;
+      --warn: #a04f18;
+      --code: #101827;
+      --codeText: #eef4fb;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      line-height: 1.62;
+      letter-spacing: 0;
+    }
+
+    a { color: var(--accent); }
+
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: 300px;
+      overflow-y: auto;
+      background: var(--paper);
+      border-right: 1px solid var(--line);
+      padding: 22px 18px;
+      z-index: 10;
+    }
+
+    .brand {
+      margin: 0;
+      color: var(--head);
+      font-size: 21px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .brand-sub {
+      margin: 8px 0 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .toc {
+      display: grid;
+      gap: 8px;
+    }
+
+    .toc a {
+      display: block;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+      color: var(--head);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .toc a:hover {
+      background: #e4f1f4;
+      border-color: #a9c3cf;
+    }
+
+    header {
+      margin-left: 300px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+      padding: 30px 30px 24px;
+    }
+
+    header .inner,
+    main {
+      width: calc(100% - 300px);
+      max-width: 1140px;
+    }
+
+    header .inner { margin: 0; }
+
+    main {
+      margin: 0 0 0 300px;
+      padding: 24px 30px 56px;
+    }
+
+    h1, h2, h3 {
+      color: var(--head);
+      letter-spacing: 0;
+      line-height: 1.25;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 33px;
+    }
+
+    h2 {
+      margin: 34px 0 12px;
+      font-size: 24px;
+    }
+
+    h3 {
+      margin: 22px 0 8px;
+      font-size: 18px;
+    }
+
+    p { margin: 8px 0; }
+    ul, ol { margin: 8px 0 0; padding-left: 22px; }
+    li { margin: 5px 0; }
+
+    code, pre {
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    code {
+      background: #eef2f5;
+      border: 1px solid #d8e0e7;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 0.94em;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 15px;
+      overflow: auto;
+      background: var(--code);
+      color: var(--codeText);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      background: var(--paper);
+      border: 1px solid var(--line);
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--soft);
+      color: #243545;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .muted { color: var(--muted); }
+
+    .panel {
+      margin: 14px 0;
+      padding: 18px 20px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .note {
+      background: #f1f8fa;
+      border-left: 5px solid var(--accent);
+    }
+
+    .warn {
+      background: var(--soft2);
+      border-left: 5px solid var(--warn);
+    }
+
+    .ok {
+      background: #f0f8f4;
+      border-left: 5px solid var(--good);
+    }
+
+    .person {
+      border-left: 5px solid var(--accent);
+    }
+
+    .person h2 { margin-top: 0; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .tile {
+      padding: 14px;
+      background: #fbfcfe;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .tile b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--accent2);
+    }
+
+    .tag {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #e7f2f4;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 750;
+      vertical-align: middle;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .flow-row {
+      display: grid;
+      grid-template-columns: 38px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .num {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      font-weight: 800;
+    }
+
+    .flow-card {
+      min-height: 38px;
+      padding: 10px 12px;
+      background: #fbfcfe;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .formula {
+      margin: 10px 0;
+      padding: 12px 14px;
+      overflow-x: auto;
+      white-space: nowrap;
+      background: #f8fbfc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    .filetree {
+      padding: 14px;
+      overflow-x: auto;
+      background: #fbfcfe;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .filetree .dir { color: var(--head); font-weight: 760; }
+    .filetree .file { color: #283744; }
+    .filetree .comment { color: var(--muted); }
+
+    .figure-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    figure { margin: 0; }
+
+    figcaption {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 1080px) {
+      .grid,
+      .grid.three,
+      .grid.two,
+      .figure-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 980px) {
+      .sidebar {
+        position: static;
+        width: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      header,
+      main {
+        margin-left: 0;
+      }
+
+      header .inner,
+      main {
+        width: auto;
+        max-width: none;
+      }
+
+      .toc {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .sidebar,
+      header,
+      main {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      h1 { font-size: 27px; }
+      h2 { font-size: 22px; }
+
+      .toc,
+      .grid,
+      .grid.three,
+      .grid.two,
+      .figure-grid {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+<aside class="sidebar" aria-label="Thanh điều hướng">
+  <p class="brand">Phân công Parallel TSP</p>
+  <p class="brand-sub">Tài liệu tiếng Việt để chia đều việc đọc code, giải thích, kiểm thử, chạy thực nghiệm và báo cáo.</p>
+  <nav class="toc" aria-label="Mục lục">
+    <a href="#overview">1. Tổng quan dễ hiểu</a>
+    <a href="#structure">2. Cấu trúc source</a>
+    <a href="#balance">3. Nguyên tắc chia đều</a>
+    <a href="#summary">4. Bảng phân công</a>
+    <a href="#person1">5. Người 1</a>
+    <a href="#person2">6. Người 2</a>
+    <a href="#person3">7. Người 3</a>
+    <a href="#person4">8. Người 4</a>
+    <a href="#coordination">9. Việc phối hợp chung</a>
+    <a href="#presentation">10. Kịch bản báo cáo</a>
+    <a href="#checklist">11. Checklist bàn giao</a>
+  </nav>
+</aside>
+
+<header>
+  <div class="inner">
+    <h1>Phân Công Đọc Và Giải Thích Source Code Parallel TSP</h1>
+    <p class="muted">
+      Tài liệu này đọc theo repo <code>parallel-tsp</code> hiện tại. Mục tiêu là chia công việc cho 4 người sao cho mỗi người đều có phần thuật toán, phần mã nguồn, phần kiểm thử/chạy lệnh và phần báo cáo. Không ai chỉ làm việc phụ, và cũng không ai phải ôm toàn bộ phần khó nhất.
+    </p>
+  </div>
+</header>
+
+<main>
+  <section id="overview" class="panel note">
+    <h2>1. Tổng Quan Dễ Hiểu</h2>
+    <p>
+      Dự án giải bài toán TSP bằng <strong>thuật toán di truyền</strong> và chạy song song bằng <strong>MPI mô hình đảo</strong>. TSP nghĩa là có nhiều thành phố, cần tìm một vòng đi qua mỗi thành phố đúng một lần rồi quay về điểm xuất phát sao cho tổng quãng đường ngắn nhất.
+    </p>
+    <p>
+      Trong code, một lời giải gọi là <code>Tour</code>, bản chất là một hoán vị số nguyên. Ví dụ <code>[0, 3, 1, 2]</code> nghĩa là đi từ thành phố <code>0</code> đến <code>3</code>, rồi <code>1</code>, rồi <code>2</code>, cuối cùng quay lại <code>0</code>. Tổng độ dài càng nhỏ thì nghiệm càng tốt.
+    </p>
+    <div class="grid">
+      <div class="tile">
+        <b>C++ là phần giải bài toán</b>
+        <code>cpp/ga_core.hpp</code>, <code>cpp/local_search.hpp</code>, <code>cpp/tsp_island.cpp</code> chứa thuật toán thật.
+      </div>
+      <div class="tile">
+        <b>MPI là phần song song</b>
+        Mỗi tiến trình MPI là một đảo. Các đảo tự tiến hóa, định kỳ chia sẻ nghiệm tốt nhất.
+      </div>
+      <div class="tile">
+        <b>Python là phần hỗ trợ</b>
+        Python chạy thí nghiệm, đọc CSV, vẽ hình, tạo live demo và kiểm tra tour.
+      </div>
+      <div class="tile">
+        <b>Cluster là phần vận hành</b>
+        Script trong <code>cluster/</code> cài OpenMPI, đồng bộ code, chạy local và chạy cụm máy.
+      </div>
+    </div>
+  </section>
+
+  <section id="structure">
+    <h2>2. Cấu Trúc Source Code</h2>
+    <div class="filetree">
+<pre><code><span class="dir">parallel-tsp/</span>
+├── <span class="file">README.md</span>                         <span class="comment">Mô tả dự án, cách build, cách chạy, thiết kế song song</span>
+├── <span class="dir">cpp/</span>                              <span class="comment">Mã C++ giải TSP</span>
+│   ├── <span class="file">ga_core.hpp</span>                  <span class="comment">Đọc dữ liệu, ma trận khoảng cách, tour length, GA operators</span>
+│   ├── <span class="file">local_search.hpp</span>             <span class="comment">2-opt, Or-opt, polish nghiệm tốt</span>
+│   ├── <span class="file">tsp_island.cpp</span>               <span class="comment">Chương trình MPI chính, quan trọng nhất</span>
+│   ├── <span class="file">tsp_sequential.cpp</span>           <span class="comment">Bản tuần tự để so sánh</span>
+│   ├── <span class="file">test_ga_core.cpp</span>             <span class="comment">Test lõi GA</span>
+│   └── <span class="file">test_local_search.cpp</span>        <span class="comment">Test 2-opt, Or-opt, polish</span>
+├── <span class="dir">python/</span>                           <span class="comment">Chạy thí nghiệm, vẽ hình, live demo, validate</span>
+├── <span class="dir">cluster/</span>                          <span class="comment">Cài môi trường, SSH, sync code, chạy MPI</span>
+├── <span class="dir">data/</span>                             <span class="comment">Dữ liệu tọa độ thành phố và script sinh dữ liệu</span>
+├── <span class="dir">results/</span>                          <span class="comment">CSV, PNG, GIF, log, báo cáo cluster</span>
+└── <span class="dir">report/</span>                           <span class="comment">Tài liệu báo cáo</span></code></pre>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Nhóm file</th>
+          <th>Ai cần đọc</th>
+          <th>Ý nghĩa ngắn gọn</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>cpp/ga_core.hpp</code></td>
+          <td>Người 1 và Người 2</td>
+          <td>Người 1 đọc phần dữ liệu, khoảng cách, tour length, quần thể; Người 2 đọc phần chọn lọc, lai ghép, đột biến, evolve.</td>
+        </tr>
+        <tr>
+          <td><code>cpp/local_search.hpp</code>, <code>cpp/tsp_sequential.cpp</code></td>
+          <td>Người 2</td>
+          <td>Giải thích cách cải thiện nghiệm và bản tuần tự làm mốc so sánh.</td>
+        </tr>
+        <tr>
+          <td><code>cpp/tsp_island.cpp</code></td>
+          <td>Người 3</td>
+          <td>Giải thích MPI, island model, migration, stats, output và live stream.</td>
+        </tr>
+        <tr>
+          <td><code>python/*.py</code></td>
+          <td>Người 4, phối hợp Người 2 và Người 3</td>
+          <td>Không giải TSP; dùng để chạy thí nghiệm, validate, vẽ biểu đồ, trình diễn.</td>
+        </tr>
+        <tr>
+          <td><code>cluster/*.sh</code>, hostfiles</td>
+          <td>Người 3 và Người 4</td>
+          <td>Người 3 phụ trách chạy MPI; Người 4 phụ trách quy trình cluster và tái lập kết quả.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="balance" class="panel ok">
+    <h2>3. Nguyên Tắc Chia Đều Công Việc</h2>
+    <p>
+      Chia đều không có nghĩa là mỗi người nhận đúng số dòng code như nhau. Repo có file lớn nhỏ khác nhau, nên chia theo <strong>độ khó + trách nhiệm bàn giao</strong>. Mỗi người đều có 4 loại việc:
+    </p>
+    <div class="grid">
+      <div class="tile">
+        <b>Đọc và hiểu code</b>
+        Nắm file mình phụ trách, biết hàm nào làm gì và dữ liệu đi qua ra sao.
+      </div>
+      <div class="tile">
+        <b>Giải thích cho người khác</b>
+        Nói bằng ngôn ngữ đơn giản, có ví dụ, không chỉ đọc tên hàm.
+      </div>
+      <div class="tile">
+        <b>Chạy kiểm chứng</b>
+        Có lệnh build/test/run cụ thể để chứng minh phần mình nói hoạt động.
+      </div>
+      <div class="tile">
+        <b>Làm phần báo cáo</b>
+        Viết đoạn mô tả, bảng, hình hoặc checklist liên quan đến phần mình phụ trách.
+      </div>
+    </div>
+    <p>
+      Vì vậy mỗi người chiếm khoảng 25% nội dung báo cáo: Người 1 nắm nền tảng dữ liệu và fitness, Người 2 nắm tiến hóa và cải thiện nghiệm, Người 3 nắm song song MPI, Người 4 nắm thực nghiệm và khả năng lặp lại.
+    </p>
+  </section>
+
+  <section id="summary">
+    <h2>4. Bảng Phân Công Tóm Tắt</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Người</th>
+          <th>Vai trò chính</th>
+          <th>Source phụ trách</th>
+          <th>Sản phẩm cần bàn giao</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Người 1</strong></td>
+          <td>Nền tảng TSP, dữ liệu, ma trận khoảng cách, hàm đánh giá, quần thể ban đầu.</td>
+          <td><code>cpp/ga_core.hpp</code> phần đọc dữ liệu đến <code>random_tour</code>, <code>data/generate_cities.py</code>, <code>cpp/test_ga_core.cpp</code> phần kiểm tra khoảng cách.</td>
+          <td>Giải thích TSP, tour, khoảng cách, fitness; tạo được dữ liệu test; chứng minh tour length tính đúng.</td>
+        </tr>
+        <tr>
+          <td><strong>Người 2</strong></td>
+          <td>Toán tử GA, cải thiện nghiệm, bản tuần tự và kiểm tra tính đúng của tour.</td>
+          <td><code>tournament_select</code>, <code>order_crossover</code>, <code>mutate</code>, <code>evolve_one_gen</code>, <code>cpp/local_search.hpp</code>, <code>cpp/tsp_sequential.cpp</code>, <code>python/validate_tour.py</code>.</td>
+          <td>Giải thích chọn lọc, lai ghép, đột biến, 2-opt/Or-opt; chạy test local search; validate tour đầu ra.</td>
+        </tr>
+        <tr>
+          <td><strong>Người 3</strong></td>
+          <td>Chương trình MPI chính, mô hình đảo, migration, đồng bộ, output và đo thời gian trong C++.</td>
+          <td><code>cpp/tsp_island.cpp</code>, <code>cluster/run_local.sh</code>, <code>cluster/run_cluster.sh</code>, <code>cluster/hello.c</code>.</td>
+          <td>Giải thích <code>MPI_Allreduce</code>, <code>MPI_Bcast</code>, gửi tour về rank 0, stats per-rank; chạy demo MPI local/cluster.</td>
+        </tr>
+        <tr>
+          <td><strong>Người 4</strong></td>
+          <td>Thực nghiệm, biểu đồ, live demo, benchmark, setup cluster và đọc kết quả báo cáo.</td>
+          <td><code>python/experiments.py</code>, <code>python/benchmark.py</code>, <code>python/visualize.py</code>, <code>python/live_view.py</code>, <code>cluster/00_*.sh</code> đến <code>03_*.sh</code>, <code>results/cluster_report.md</code>.</td>
+          <td>Sinh CSV/PNG/GIF, giải thích speedup/efficiency/load balance, viết quy trình tái lập và nhận xét kết quả.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="person1" class="panel person">
+    <h2>5. Người 1 <span class="tag">Nền Tảng TSP + Fitness</span></h2>
+    <h3>5.1 Công việc chính</h3>
+    <ul>
+      <li>Giải thích bài toán TSP bằng ví dụ đơn giản: đi qua tất cả thành phố đúng một lần rồi quay về điểm đầu.</li>
+      <li>Giải thích kiểu <code>Tour = std::vector&lt;int&gt;</code>: một tour là danh sách thứ tự thành phố.</li>
+      <li>Đọc và trình bày <code>read_cities</code>, <code>distance_matrix</code>, <code>tour_length</code>, <code>random_tour</code> trong <code>cpp/ga_core.hpp</code>.</li>
+      <li>Phụ trách file dữ liệu trong <code>data/</code> và script <code>data/generate_cities.py</code>.</li>
+      <li>Phụ trách phần test khoảng cách, độ dài tour và tính hợp lệ cơ bản trong <code>cpp/test_ga_core.cpp</code>.</li>
+    </ul>
+
+    <h3>5.2 Giải thích code sao cho ai cũng hiểu</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Hàm/file</th>
+          <th>Giải thích dễ hiểu</th>
+          <th>Vì sao quan trọng</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>read_cities(path)</code></td>
+          <td>Đọc từng dòng tọa độ <code>x y</code> từ file, bỏ qua dòng trống và dòng bắt đầu bằng <code>#</code>.</td>
+          <td>Nếu dữ liệu đầu vào sai thì toàn bộ thuật toán phía sau sai.</td>
+        </tr>
+        <tr>
+          <td><code>distance_matrix(c)</code></td>
+          <td>Tạo ma trận <code>N x N</code>, ô <code>D[i*n+j]</code> là khoảng cách Euclid giữa thành phố <code>i</code> và <code>j</code>.</td>
+          <td>Tính trước giúp về sau tra khoảng cách nhanh, đổi lại tốn bộ nhớ <code>O(N²)</code>.</td>
+        </tr>
+        <tr>
+          <td><code>tour_length(t, D, n)</code></td>
+          <td>Cộng khoảng cách từ thành phố hiện tại sang thành phố kế tiếp, rồi cộng cạnh quay về thành phố đầu.</td>
+          <td>Đây là hàm đánh giá nghiệm. Thuật toán chỉ biết nghiệm nào tốt hơn nhờ số này.</td>
+        </tr>
+        <tr>
+          <td><code>random_tour(n, rng)</code></td>
+          <td>Tạo danh sách <code>0..n-1</code>, sau đó shuffle để có một hành trình ngẫu nhiên.</td>
+          <td>Dùng để tạo quần thể ban đầu đa dạng.</td>
+        </tr>
+        <tr>
+          <td><code>generate_cities.py</code></td>
+          <td>Sinh dữ liệu thành phố ngẫu nhiên hoặc theo cụm, có seed để chạy lại được.</td>
+          <td>Giúp tạo nhiều kích thước bài toán: 50, 100, 400, 2400, 4800 thành phố.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>5.3 Ví dụ cần nói khi thuyết trình</h3>
+    <div class="formula">tour = [0, 3, 1, 2] nghĩa là 0 → 3 → 1 → 2 → 0</div>
+    <p>
+      Với TSP, thuật toán không cần biết đường đi "đẹp" hay "xấu" bằng mắt. Nó chỉ cần tính tổng độ dài. Nếu tour A dài 300 và tour B dài 250 thì tour B tốt hơn vì mục tiêu là tối thiểu hóa.
+    </p>
+
+    <h3>5.4 Lệnh kiểm chứng của Người 1</h3>
+<pre><code># Sinh dữ liệu nhỏ để test
+python3 data/generate_cities.py --n 20 --mode random --seed 1 --out /tmp/cities_20.txt
+
+# Build và chạy test lõi GA
+make -C cpp test
+
+# Chạy bản MPI nhỏ để xem số thành phố và best length
+mpirun --oversubscribe -np 2 ./cpp/tsp_island /tmp/cities_20.txt --gens 50 --sync 10</code></pre>
+
+    <h3>5.5 Bàn giao của Người 1</h3>
+    <ul>
+      <li>Một đoạn báo cáo giải thích biểu diễn tour, ma trận khoảng cách và fitness.</li>
+      <li>Một bảng nhỏ giải thích các hàm <code>read_cities</code>, <code>distance_matrix</code>, <code>tour_length</code>.</li>
+      <li>Một ví dụ dữ liệu tự sinh bằng <code>generate_cities.py</code>.</li>
+      <li>Kết quả test chứng minh tính khoảng cách và độ dài tour đúng.</li>
+    </ul>
+  </section>
+
+  <section id="person2" class="panel person">
+    <h2>6. Người 2 <span class="tag">Toán Tử Di Truyền + Local Search</span></h2>
+    <h3>6.1 Công việc chính</h3>
+    <ul>
+      <li>Giải thích cách thuật toán di truyền tạo thế hệ mới: chọn cha mẹ, lai ghép, đột biến, giữ cá thể tốt.</li>
+      <li>Đọc phần <code>tournament_select</code>, <code>order_crossover</code>, <code>mutate</code>, <code>evolve_one_gen</code> trong <code>cpp/ga_core.hpp</code>.</li>
+      <li>Đọc <code>cpp/local_search.hpp</code> để giải thích 2-opt, Or-opt và <code>polish</code>.</li>
+      <li>Đọc <code>cpp/tsp_sequential.cpp</code> để giải thích bản tuần tự làm baseline.</li>
+      <li>Phụ trách <code>cpp/test_local_search.cpp</code> và <code>python/validate_tour.py</code>.</li>
+    </ul>
+
+    <h3>6.2 Các bước tiến hóa một thế hệ</h3>
+    <div class="flow">
+      <div class="flow-row">
+        <div class="num">1</div>
+        <div class="flow-card"><strong>Sắp xếp theo độ dài.</strong> Cá thể có tour ngắn hơn được coi là tốt hơn.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">2</div>
+        <div class="flow-card"><strong>Elitism.</strong> Giữ lại một số cá thể tốt nhất để thế hệ sau không bị tệ đi đột ngột.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">3</div>
+        <div class="flow-card"><strong>Tournament selection.</strong> Bốc ngẫu nhiên vài cá thể, chọn cá thể tốt nhất trong nhóm làm cha/mẹ.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">4</div>
+        <div class="flow-card"><strong>Order crossover.</strong> Giữ một đoạn từ cha thứ nhất, điền các thành phố còn lại theo thứ tự cha thứ hai.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">5</div>
+        <div class="flow-card"><strong>Mutation.</strong> Đổi chỗ hoặc đảo đoạn để tạo khác biệt, tránh quần thể giống nhau quá sớm.</div>
+      </div>
+    </div>
+
+    <h3>6.3 Giải thích các hàm quan trọng</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Hàm</th>
+          <th>Ý nghĩa</th>
+          <th>Cách giải thích ngắn</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>tournament_select</code></td>
+          <td>Chọn cá thể tốt trong một nhóm nhỏ ngẫu nhiên.</td>
+          <td>Giống như tổ chức một cuộc thi nhỏ, ai có quãng đường ngắn nhất thì thắng.</td>
+        </tr>
+        <tr>
+          <td><code>order_crossover</code></td>
+          <td>Lai ghép hai tour mà vẫn giữ tour hợp lệ.</td>
+          <td>Không được lặp thành phố, nên OX giữ đoạn tốt và điền phần còn lại không trùng.</td>
+        </tr>
+        <tr>
+          <td><code>mutate</code></td>
+          <td>Tạo thay đổi nhỏ bằng swap và reverse đoạn.</td>
+          <td>Giúp thuật toán có cơ hội thoát khỏi hướng tìm kiếm kém.</td>
+        </tr>
+        <tr>
+          <td><code>two_opt</code></td>
+          <td>Đảo một đoạn nếu làm hai cạnh nối ngắn hơn.</td>
+          <td>Thường dùng để bỏ đường cắt chéo trong TSP.</td>
+        </tr>
+        <tr>
+          <td><code>or_opt</code></td>
+          <td>Di chuyển một đoạn ngắn sang vị trí khác nếu tốt hơn.</td>
+          <td>Bổ sung cho 2-opt vì không chỉ đảo đoạn mà còn đổi vị trí đoạn.</td>
+        </tr>
+        <tr>
+          <td><code>polish</code></td>
+          <td>Chạy 2-opt rồi Or-opt trên cá thể tốt.</td>
+          <td>Là bước "đánh bóng" nghiệm, biến GA thành dạng memetic khi bật <code>--twoopt</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.4 Bản tuần tự dùng để làm gì?</h3>
+    <p>
+      <code>cpp/tsp_sequential.cpp</code> chạy cùng lõi GA nhưng chỉ trên một tiến trình. Nó giúp người đọc hiểu thuật toán không có MPI trước, sau đó mới so sánh với bản song song. Khi báo cáo, Người 2 nên nói: "Nếu bỏ MPI, thuật toán vẫn chạy được; MPI chỉ làm nhiều island chạy đồng thời và trao đổi nghiệm."
+    </p>
+
+    <h3>6.5 Lệnh kiểm chứng của Người 2</h3>
+<pre><code># Test local search và GA operators
+make -C cpp test
+
+# Chạy bản tuần tự
+./cpp/tsp_sequential data/cities_50.txt 300 150 42
+
+# Validate tour đầu ra từ solver
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 300 --sync 20 --out /tmp/tour50
+python3 python/visualize.py route data/cities_50.txt /tmp/tour50 --out /tmp/route50.png</code></pre>
+
+    <h3>6.6 Bàn giao của Người 2</h3>
+    <ul>
+      <li>Sơ đồ hoặc đoạn mô tả vòng lặp <code>evolve_one_gen</code>.</li>
+      <li>Giải thích OX bằng ví dụ cha mẹ và con.</li>
+      <li>Giải thích 2-opt/Or-opt bằng trực giác "đổi đoạn để đường ngắn hơn".</li>
+      <li>Kết quả test chứng minh local search giữ tour hợp lệ và không làm nghiệm tệ hơn.</li>
+    </ul>
+  </section>
+
+  <section id="person3" class="panel person">
+    <h2>7. Người 3 <span class="tag">MPI Mô Hình Đảo</span></h2>
+    <h3>7.1 Công việc chính</h3>
+    <ul>
+      <li>Đọc toàn bộ <code>cpp/tsp_island.cpp</code> vì đây là chương trình chính của dự án.</li>
+      <li>Giải thích mỗi rank MPI là một island có quần thể riêng và seed riêng.</li>
+      <li>Giải thích <code>--sync</code>, <code>--migrants</code>, <code>--patience</code>, <code>--twoopt</code>, <code>--out</code>, <code>--stats</code>, <code>--live</code>.</li>
+      <li>Giải thích <code>MPI_Allreduce(MINLOC)</code>, <code>MPI_Bcast</code>, <code>MPI_Send</code>, <code>MPI_Recv</code>, <code>MPI_Gather</code>.</li>
+      <li>Phụ trách chạy nhanh MPI bằng <code>cluster/run_local.sh</code>, <code>cluster/run_cluster.sh</code> và <code>cluster/hello.c</code>.</li>
+    </ul>
+
+    <h3>7.2 Luồng chương trình MPI</h3>
+<pre><code>MPI_Init
+rank nào cũng đọc cùng dữ liệu thành phố
+rank nào cũng tạo ma trận khoảng cách
+mỗi rank tạo quần thể riêng với seed khác nhau
+
+for mỗi thế hệ:
+    evolve_one_gen trên quần thể local
+    nếu bật twoopt thì polish cá thể tốt nhất local
+    nếu đến mốc sync:
+        Allreduce(MINLOC) tìm best length toàn cục và rank sở hữu nó
+        Bcast tour tốt nhất từ rank thắng sang mọi rank
+        các rank khác lai OX với global best để thay cá thể tệ
+        cập nhật early stopping nếu global best đứng yên lâu
+
+cuối chương trình:
+    Allreduce tìm rank thắng cuối cùng
+    rank thắng gửi tour về rank 0
+    Gather compute/comm/total time về rank 0
+    rank 0 in kết quả và ghi file nếu có --out/--stats</code></pre>
+
+    <h3>7.3 Các lệnh MPI trong code</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Lệnh</th>
+          <th>Dùng ở đâu</th>
+          <th>Giải thích dễ hiểu</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>MPI_Comm_rank</code></td>
+          <td>Đầu chương trình</td>
+          <td>Cho biết tiến trình hiện tại là rank số mấy.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Comm_size</code></td>
+          <td>Đầu chương trình</td>
+          <td>Cho biết tổng số rank đang chạy.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Barrier</code></td>
+          <td>Trước và sau vòng lặp chính</td>
+          <td>Đưa các rank về cùng mốc đo thời gian.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Allreduce</code> với <code>MPI_MINLOC</code></td>
+          <td>Mỗi lần sync và cuối chương trình</td>
+          <td>Tìm giá trị nhỏ nhất và rank sở hữu giá trị đó.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Bcast</code></td>
+          <td>Mỗi lần sync</td>
+          <td>Rank có tour tốt nhất phát tour đó cho tất cả rank khác.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Send</code> / <code>MPI_Recv</code></td>
+          <td>Cuối chương trình</td>
+          <td>Nếu rank thắng không phải rank 0 thì gửi tour thắng về rank 0 để in và lưu.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Gather</code></td>
+          <td>Cuối chương trình</td>
+          <td>Gom thời gian compute, comm, total và population của từng rank về rank 0.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>7.4 Vì sao migration không clone nguyên tour?</h3>
+    <p>
+      Nếu mọi rank sao chép nguyên tour tốt nhất, các quần thể sẽ nhanh chóng giống nhau. Khi đó chạy nhiều đảo cũng gần như chạy một đảo lớn, mất lợi ích tìm kiếm đa hướng. Code chọn cách mềm hơn: rank khác lấy <code>global best</code> làm một cha trong OX, cha còn lại là cá thể local ngẫu nhiên, rồi thay cá thể tệ nhất. Như vậy đoạn đường tốt được lan truyền nhưng mỗi đảo vẫn còn khác nhau.
+    </p>
+
+    <h3>7.5 Output và đo thời gian</h3>
+    <ul>
+      <li><code>--out tour.txt</code>: rank 0 ghi tour tốt nhất và file lịch sử hội tụ.</li>
+      <li><code>--stats stats.csv</code>: ghi mỗi rank một dòng gồm compute time, comm time, total time, makespan, best length.</li>
+      <li><code>--live stream.jsonl</code>: rank 0 ghi JSONL để <code>python/live_view.py</code> bám theo và vẽ live.</li>
+      <li><code>comm_time</code>: thời gian nằm trong các lời gọi MPI quan trọng.</li>
+      <li><code>compute_time</code>: xấp xỉ bằng <code>elapsed - comm_time</code>.</li>
+    </ul>
+
+    <h3>7.6 Lệnh kiểm chứng của Người 3</h3>
+<pre><code># Kiểm tra MPI chạy trên một máy
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 100 --sync 20
+
+# Chạy bằng wrapper local
+bash cluster/run_local.sh 4 data/cities_50.txt --gens 100 --sync 20
+
+# Kiểm tra launcher cluster chỉ in hostname
+bash cluster/run_cluster.sh cluster/hosts.seq48 4 hostname
+
+# Chạy cluster thật với 4 rank
+bash cluster/run_cluster.sh cluster/hosts.seq48 4 ./cpp/tsp_island data/cities_200.txt --gens 300 --sync 20 --stats /tmp/stats.csv</code></pre>
+
+    <h3>7.7 Bàn giao của Người 3</h3>
+    <ul>
+      <li>Sơ đồ luồng MPI từ khởi tạo đến gather kết quả.</li>
+      <li>Giải thích rõ sự khác nhau giữa local best và global best.</li>
+      <li>Giải thích mỗi tham số chạy chính của <code>tsp_island</code>.</li>
+      <li>Một output chạy thử có số rank, best length, route và bảng per-rank time.</li>
+    </ul>
+  </section>
+
+  <section id="person4" class="panel person">
+    <h2>8. Người 4 <span class="tag">Thực Nghiệm + Biểu Đồ + Cluster</span></h2>
+    <h3>8.1 Công việc chính</h3>
+    <ul>
+      <li>Đọc <code>python/experiments.py</code> để giải thích 3 thí nghiệm: size, granularity, speedup.</li>
+      <li>Đọc <code>python/benchmark.py</code> để giải thích phép đo speedup độc lập và Amdahl.</li>
+      <li>Đọc <code>python/visualize.py</code> và <code>python/live_view.py</code> để giải thích hình route, convergence, live stream, islands race.</li>
+      <li>Đọc script cluster từ <code>00_build_openmpi.sh</code> đến <code>03_sync_code.sh</code> để giải thích quy trình tái lập môi trường.</li>
+      <li>Đọc <code>results/cluster_report.md</code> để rút ra kết luận hiệu năng, mạng, load balance và giới hạn RAM.</li>
+    </ul>
+
+    <h3>8.2 Ba thí nghiệm trong <code>experiments.py</code></h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Thí nghiệm</th>
+          <th>Nó làm gì?</th>
+          <th>Kết quả tạo ra</th>
+          <th>Ý nghĩa khi báo cáo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>size</code></td>
+          <td>Giữ số process, thay đổi số thành phố <code>N</code>.</td>
+          <td><code>results/exp_size.csv</code>, <code>results/exp_size.png</code>.</td>
+          <td>Cho thấy bài toán càng lớn thì compute tăng và song song hóa đáng giá hơn.</td>
+        </tr>
+        <tr>
+          <td><code>gran</code></td>
+          <td>Chạy một cấu hình, đọc thời gian từng rank.</td>
+          <td><code>results/exp_gran.csv</code>, <code>results/exp_gran.png</code>.</td>
+          <td>Kiểm tra cân bằng tải: rank nào compute/comm/idle nhiều.</td>
+        </tr>
+        <tr>
+          <td><code>speedup</code></td>
+          <td>Thay đổi số process và tính <code>S(p)=T(1)/T(p)</code>.</td>
+          <td><code>results/exp_speedup.csv</code>, <code>results/exp_speedup.png</code>.</td>
+          <td>Đánh giá tăng tốc và hiệu suất khi thêm rank.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>8.3 Các chỉ số cần giải thích</h3>
+    <div class="grid">
+      <div class="tile">
+        <b>Total time</b>
+        Thời gian chạy thực tế, lấy theo makespan, tức rank chậm nhất quyết định tổng thời gian.
+      </div>
+      <div class="tile">
+        <b>Compute time</b>
+        Thời gian ước lượng dành cho tiến hóa GA và local search.
+      </div>
+      <div class="tile">
+        <b>Comm time</b>
+        Thời gian nằm trong các lời gọi MPI và thời gian chờ đồng bộ.
+      </div>
+      <div class="tile">
+        <b>Speedup</b>
+        <code>S(p)=T(1)/T(p)</code>. Nếu lớn hơn 1 nghĩa là chạy nhiều process nhanh hơn 1 process.
+      </div>
+    </div>
+
+    <h3>8.4 Cluster setup cần nói</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Vai trò</th>
+          <th>Lý do cần có</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>cluster/00_build_openmpi.sh</code></td>
+          <td>Build OpenMPI 5.0.9 vào <code>/opt/openmpi-5.0.9</code>.</td>
+          <td>Tránh lỗi lệch phiên bản PMIx giữa các máy.</td>
+        </tr>
+        <tr>
+          <td><code>cluster/01_install.sh</code></td>
+          <td>Cài build tools, Python plotting, SSH, rsync.</td>
+          <td>Chuẩn hóa môi trường cần để build C++ và vẽ kết quả.</td>
+        </tr>
+        <tr>
+          <td><code>cluster/02_ssh_setup.sh</code></td>
+          <td>Tạo SSH key và copy public key sang node khác.</td>
+          <td><code>mpirun</code> cần SSH không mật khẩu để mở remote rank.</td>
+        </tr>
+        <tr>
+          <td><code>cluster/03_sync_code.sh</code></td>
+          <td>Dùng rsync đưa source sang node khác.</td>
+          <td>Các node phải có cùng code, cùng data, cùng đường dẫn tương đối.</td>
+        </tr>
+        <tr>
+          <td><code>cluster/hosts.seq48</code></td>
+          <td>Hostfile 48 dòng round-robin.</td>
+          <td>Do <code>--map-by seq</code> cần đúng số dòng để chạy nhiều rank trên nhiều máy.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>8.5 Kết luận thực nghiệm cần nắm</h3>
+    <ul>
+      <li>Với bài toán nhỏ như <code>N=400</code>, thêm quá nhiều rank có thể chậm hơn vì chi phí đồng bộ lớn hơn phần tính toán.</li>
+      <li>Với bài toán lớn như <code>N=4800</code>, speedup thực tế vẫn lớn hơn 1 và đạt đỉnh trong báo cáo ở khoảng 16 process.</li>
+      <li>Load balance tốt khi idle skew thấp; báo cáo ghi nhận các thí nghiệm có idle skew khoảng 1.6% đến 1.8%.</li>
+      <li>Ma trận khoảng cách tốn <code>O(N²)</code> bộ nhớ trên mỗi rank, nên cluster có giới hạn RAM khi <code>N</code> quá lớn.</li>
+      <li>Python không tự giải TSP; Python chỉ gọi C++ solver, đọc output và vẽ hình.</li>
+    </ul>
+
+    <h3>8.6 Lệnh kiểm chứng của Người 4</h3>
+<pre><code># Sinh hình route và convergence từ output có sẵn
+python3 python/visualize.py route data/cities_50.txt results/tour_mig.txt --out /tmp/route.png
+python3 python/visualize.py converge results/tour_mig.txt.history --out /tmp/converge.png
+
+# Chạy thí nghiệm nhỏ để kiểm tra pipeline
+python3 python/experiments.py speedup --procs 1 2 4 --size 100 --gens 100
+
+# Chạy report experiments qua wrapper
+GENS=100 SIZES="50 100" SPEEDUP_PROCS="1 2 4" GRAN_N=100 SPEEDUP_N=100 bash cluster/run_report_experiments.sh</code></pre>
+
+    <h3>8.7 Bàn giao của Người 4</h3>
+    <ul>
+      <li>Giải thích được các file CSV/PNG trong <code>results/</code>.</li>
+      <li>Một bảng speedup và một hình runtime/speedup để đưa vào báo cáo.</li>
+      <li>Checklist tái lập cluster: OpenMPI, SSH, sync code, hostfile, build C++ trên mọi node.</li>
+      <li>Nhận xét đúng: bài nhỏ bị chi phí giao tiếp lấn át; bài lớn mới có lợi hơn khi song song.</li>
+    </ul>
+  </section>
+
+  <section id="coordination">
+    <h2>9. Việc Phối Hợp Chung</h2>
+    <p>
+      Có một số phần không nên giao riêng tuyệt đối cho một người, vì khi báo cáo cần nối mạch giữa thuật toán, MPI và thực nghiệm.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Việc chung</th>
+          <th>Người chính</th>
+          <th>Người phối hợp</th>
+          <th>Cách chia để vẫn đều</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Viết phần "Cách chạy"</td>
+          <td>Người 3</td>
+          <td>Người 4</td>
+          <td>Người 3 viết lệnh C++/MPI; Người 4 viết lệnh experiments và cluster setup.</td>
+        </tr>
+        <tr>
+          <td>Giải thích "vì sao speedup giảm"</td>
+          <td>Người 4</td>
+          <td>Người 3</td>
+          <td>Người 4 phân tích số liệu; Người 3 giải thích nguyên nhân từ <code>Allreduce</code>/<code>Bcast</code>.</td>
+        </tr>
+        <tr>
+          <td>Kiểm tra tour hợp lệ</td>
+          <td>Người 2</td>
+          <td>Người 1</td>
+          <td>Người 1 giải thích tour/permutation; Người 2 chạy validate và so với độ dài recompute.</td>
+        </tr>
+        <tr>
+          <td>Chuẩn bị demo</td>
+          <td>Người 4</td>
+          <td>Người 2 và Người 3</td>
+          <td>Người 4 chạy hình/live; Người 2 giải thích đường đi cải thiện; Người 3 giải thích các island cùng chạy.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="presentation">
+    <h2>10. Kịch Bản Báo Cáo Theo Thứ Tự</h2>
+    <div class="flow">
+      <div class="flow-row">
+        <div class="num">1</div>
+        <div class="flow-card"><strong>Người 1 mở đầu.</strong> Nói TSP là gì, tour được biểu diễn ra sao, dữ liệu thành phố được đọc thế nào, vì sao cần ma trận khoảng cách và hàm <code>tour_length</code>.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">2</div>
+        <div class="flow-card"><strong>Người 2 nối tiếp.</strong> Nói thuật toán di truyền tạo thế hệ mới bằng chọn lọc, OX, đột biến, elitism; sau đó giải thích 2-opt/Or-opt và bản tuần tự.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">3</div>
+        <div class="flow-card"><strong>Người 3 trình bày phần song song.</strong> Nói mỗi rank là một đảo, sync định kỳ bằng <code>Allreduce</code>/<code>Bcast</code>, migration không clone nguyên nghiệm, cuối cùng gather kết quả.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">4</div>
+        <div class="flow-card"><strong>Người 4 trình bày thực nghiệm.</strong> Nói cách sinh CSV/PNG, đọc speedup, load balance, ảnh hưởng của communication, setup cluster và kết luận từ số liệu.</div>
+      </div>
+    </div>
+
+    <div class="panel warn">
+      <h3>Những câu dễ bị hỏi</h3>
+      <ul>
+        <li><strong>Python có giải thuật toán không?</strong> Không. Python chỉ chạy C++ solver và vẽ/kiểm tra kết quả.</li>
+        <li><strong>Vì sao không tăng rank là nhanh mãi?</strong> Vì khi bài nhỏ, thời gian giao tiếp và chờ đồng bộ lớn hơn lượng compute tiết kiệm được.</li>
+        <li><strong>Vì sao tour luôn hợp lệ?</strong> Vì tour là hoán vị, OX và mutation được test để không làm mất hoặc lặp thành phố.</li>
+        <li><strong>Vì sao cần <code>--sync 0</code>?</strong> Để có baseline không chia sẻ nghiệm, giúp so sánh chi phí và lợi ích của migration.</li>
+        <li><strong>Vì sao cần hostfile 48 dòng?</strong> Vì launcher dùng <code>--map-by seq</code>, mapper này đọc tuần tự từng dòng hostfile để đặt rank.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="checklist">
+    <h2>11. Checklist Bàn Giao Cuối</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Mục kiểm tra</th>
+          <th>Người chịu trách nhiệm</th>
+          <th>Đạt khi nào?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Giải thích TSP, tour, ma trận khoảng cách, fitness.</td>
+          <td>Người 1</td>
+          <td>Người ngoài nhóm hiểu được một tour là gì và vì sao length càng nhỏ càng tốt.</td>
+        </tr>
+        <tr>
+          <td>Giải thích vòng lặp GA và local search.</td>
+          <td>Người 2</td>
+          <td>Nói được chọn lọc, OX, mutation, elitism, 2-opt, Or-opt bằng ví dụ.</td>
+        </tr>
+        <tr>
+          <td>Giải thích MPI island model.</td>
+          <td>Người 3</td>
+          <td>Nói rõ local best/global best, <code>Allreduce</code>, <code>Bcast</code>, migration và gather kết quả.</td>
+        </tr>
+        <tr>
+          <td>Giải thích experiments và biểu đồ.</td>
+          <td>Người 4</td>
+          <td>Nói được total/compute/comm/speedup/efficiency/load balance và kết luận từ cluster report.</td>
+        </tr>
+        <tr>
+          <td>Build và test C++.</td>
+          <td>Người 1 + Người 2</td>
+          <td><code>make -C cpp test</code> chạy qua.</td>
+        </tr>
+        <tr>
+          <td>Chạy MPI local.</td>
+          <td>Người 3</td>
+          <td><code>mpirun --oversubscribe -np 4 ./cpp/tsp_island ...</code> in được best length và bảng rank.</td>
+        </tr>
+        <tr>
+          <td>Sinh biểu đồ hoặc live demo.</td>
+          <td>Người 4</td>
+          <td>Tạo được PNG/GIF hoặc mở được live view từ output solver.</td>
+        </tr>
+        <tr>
+          <td>Validate tour đầu ra.</td>
+          <td>Người 2 + Người 1</td>
+          <td>Tour là permutation hợp lệ và recompute length khớp với best length.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Lệnh tổng hợp nên chạy trước khi nộp</h3>
+<pre><code># 1. Build và test
+make -C cpp test
+
+# 2. Chạy solver nhỏ, lưu tour và stats
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt \
+  --gens 300 --sync 20 --out /tmp/tour50 --stats /tmp/stats50.csv
+
+# 3. Vẽ route và convergence
+python3 python/visualize.py route data/cities_50.txt /tmp/tour50 --out /tmp/route50.png
+python3 python/visualize.py converge /tmp/tour50.history --out /tmp/converge50.png
+
+# 4. Chạy speedup nhỏ để kiểm tra pipeline Python
+python3 python/experiments.py speedup --procs 1 2 4 --size 100 --gens 100</code></pre>
+
+    <div class="panel ok">
+      <h3>Kết luận phân công</h3>
+      <p>
+        Bốn phần việc được chia cân bằng theo mức độ quan trọng: Người 1 nắm dữ liệu và hàm đánh giá, Người 2 nắm cơ chế tiến hóa và cải thiện nghiệm, Người 3 nắm MPI và chương trình chính, Người 4 nắm thực nghiệm và cluster. Khi ghép lại, cả nhóm giải thích được toàn bộ repo từ dữ liệu đầu vào, thuật toán, song song hóa, đến kết quả thực nghiệm và cách tái lập.
+      </p>
+    </div>
+  </section>
+</main>
+</body>
+</html>
