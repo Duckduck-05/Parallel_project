@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Giải thích thuật toán Parallel TSP</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --paper: #ffffff;
+      --ink: #1c2633;
+      --muted: #637083;
+      --line: #d9e0e8;
+      --soft: #eef4f7;
+      --soft2: #fff7ec;
+      --head: #153449;
+      --accent: #16697a;
+      --accent2: #9b5b17;
+      --good: #1f7a4d;
+      --warn: #a04f18;
+      --code: #101827;
+      --codeText: #eef4fb;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      line-height: 1.62;
+      letter-spacing: 0;
+    }
+
+    a { color: var(--accent); }
+
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: 286px;
+      overflow-y: auto;
+      background: var(--paper);
+      border-right: 1px solid var(--line);
+      padding: 22px 18px;
+      z-index: 10;
+    }
+
+    .brand {
+      margin: 0;
+      color: var(--head);
+      font-size: 21px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .brand-sub {
+      margin: 8px 0 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .toc {
+      display: grid;
+      gap: 8px;
+    }
+
+    .toc a {
+      display: block;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+      color: var(--head);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .toc a:hover {
+      background: #e4f1f4;
+      border-color: #a9c3cf;
+    }
+
+    header {
+      margin-left: 286px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+      padding: 30px 30px 24px;
+    }
+
+    header .inner,
+    main {
+      width: calc(100% - 286px);
+      max-width: 1120px;
+    }
+
+    header .inner {
+      margin: 0;
+    }
+
+    main {
+      margin: 0 0 0 286px;
+      padding: 24px 30px 56px;
+    }
+
+    h1, h2, h3 {
+      color: var(--head);
+      letter-spacing: 0;
+      line-height: 1.25;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 33px;
+    }
+
+    h2 {
+      margin: 34px 0 12px;
+      font-size: 24px;
+    }
+
+    h3 {
+      margin: 22px 0 8px;
+      font-size: 18px;
+    }
+
+    p { margin: 8px 0; }
+    ul, ol { margin: 8px 0 0; padding-left: 22px; }
+    li { margin: 5px 0; }
+
+    code, pre {
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    code {
+      background: #eef2f5;
+      border: 1px solid #d8e0e7;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 0.94em;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 15px;
+      overflow: auto;
+      background: var(--code);
+      color: var(--codeText);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      background: var(--paper);
+      border: 1px solid var(--line);
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--soft);
+      color: #243545;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .muted { color: var(--muted); }
+
+    .panel {
+      margin: 14px 0;
+      padding: 18px 20px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .note {
+      background: #f1f8fa;
+      border-left: 5px solid var(--accent);
+    }
+
+    .warn {
+      background: var(--soft2);
+      border-left: 5px solid var(--warn);
+    }
+
+    .ok {
+      background: #f0f8f4;
+      border-left: 5px solid var(--good);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .tile {
+      padding: 14px;
+      background: #fbfcfe;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .tile b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--accent2);
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .flow-row {
+      display: grid;
+      grid-template-columns: 38px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .num {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      font-weight: 800;
+    }
+
+    .flow-card {
+      min-height: 38px;
+      padding: 10px 12px;
+      background: #fbfcfe;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .formula {
+      margin: 10px 0;
+      padding: 12px 14px;
+      overflow-x: auto;
+      white-space: nowrap;
+      background: #f8fbfc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    .filetree {
+      padding: 14px;
+      overflow-x: auto;
+      background: #fbfcfe;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .filetree .dir { color: var(--head); font-weight: 760; }
+    .filetree .file { color: #283744; }
+    .filetree .comment { color: var(--muted); }
+
+    .figure-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    figure { margin: 0; }
+
+    figcaption {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .key {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #e7f2f4;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    @media (max-width: 980px) {
+      .sidebar {
+        position: static;
+        width: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      header,
+      main {
+        margin-left: 0;
+      }
+
+      header .inner,
+      main {
+        width: auto;
+        max-width: none;
+      }
+
+      .toc {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid,
+      .grid.two,
+      .figure-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .sidebar,
+      header,
+      main {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      h1 { font-size: 27px; }
+      h2 { font-size: 22px; }
+
+      .toc { grid-template-columns: 1fr; }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+<aside class="sidebar" aria-label="Thanh điều hướng">
+  <p class="brand">Parallel TSP</p>
+  <p class="brand-sub">Giải thích thuật toán, luồng MPI, thời gian chạy và kết quả cluster.</p>
+  <nav class="toc" aria-label="Mục lục">
+    <a href="#overview">1. Tổng quan</a>
+    <a href="#structure">2. Cấu trúc repo</a>
+    <a href="#algorithm">3. Thuật toán GA</a>
+    <a href="#parallel">4. MPI mô hình đảo</a>
+    <a href="#complexity">5. Thời gian chạy</a>
+    <a href="#cluster">6. Kết quả cluster</a>
+    <a href="#network">7. Nhận xét mạng</a>
+    <a href="#run">8. Cách chạy</a>
+    <a href="#conclusion">9. Kết luận</a>
+  </nav>
+</aside>
+
+<header>
+  <div class="inner">
+    <h1>Giải thích thuật toán Parallel TSP</h1>
+    <p class="muted">
+      Tài liệu này giải thích repo <code>parallel-tsp</code> theo hướng người đọc có thể hiểu bài toán, mã nguồn, luồng thuật toán, cách song song hóa bằng MPI, cách đo thời gian và ý nghĩa kết quả thực nghiệm trên cluster 4 node.
+    </p>
+  </div>
+</header>
+
+<main>
+  <section id="overview" class="panel note">
+    <h2>1. Tổng Quan</h2>
+    <p>
+      Bài toán TSP yêu cầu tìm một chu trình đi qua mỗi thành phố đúng một lần rồi quay về điểm đầu sao cho tổng khoảng cách nhỏ nhất. Repo này giải TSP bằng <strong>thuật toán di truyền</strong> và song song hóa bằng <strong>MPI mô hình đảo</strong>.
+    </p>
+    <p>
+      Mỗi nghiệm là một hoán vị các thành phố, ví dụ <code>[0, 3, 1, 4, 2]</code> nghĩa là đi <code>0 → 3 → 1 → 4 → 2 → 0</code>. Giá trị cần tối ưu là <code>tour_length</code>, tức tổng độ dài chu trình. Giá trị càng nhỏ càng tốt.
+    </p>
+
+    <div class="grid">
+      <div class="tile">
+        <b>Thuật toán chính</b>
+        Lõi giải bài toán nằm trong C++: <code>cpp/ga_core.hpp</code>, <code>cpp/local_search.hpp</code>, <code>cpp/tsp_island.cpp</code>.
+      </div>
+      <div class="tile">
+        <b>Song song hóa</b>
+        Mỗi tiến trình MPI là một đảo chạy quần thể riêng. Định kỳ các đảo chia sẻ nghiệm tốt nhất toàn cục.
+      </div>
+      <div class="tile">
+        <b>Python làm gì?</b>
+        Python không giải TSP. Python chỉ chạy thí nghiệm, đọc output C++, vẽ biểu đồ và tạo hình báo cáo.
+      </div>
+    </div>
+  </section>
+
+  <section id="structure">
+    <h2>2. Cấu Trúc Repo</h2>
+    <div class="filetree">
+<pre><code><span class="dir">parallel-tsp/</span>
+├── <span class="file">README.md</span>                         <span class="comment">Hướng dẫn build, chạy, mô tả thiết kế song song</span>
+├── <span class="dir">cpp/</span>                              <span class="comment">Mã C++ chứa thuật toán thật</span>
+│   ├── <span class="file">ga_core.hpp</span>                  <span class="comment">Đọc dữ liệu, ma trận khoảng cách, GA operators</span>
+│   ├── <span class="file">local_search.hpp</span>             <span class="comment">2-opt, Or-opt, tinh chỉnh nghiệm</span>
+│   ├── <span class="file">tsp_island.cpp</span>               <span class="comment">Bản MPI song song, file quan trọng nhất</span>
+│   ├── <span class="file">tsp_sequential.cpp</span>           <span class="comment">Bản tuần tự để hiểu GA cơ bản</span>
+│   └── <span class="file">test_*.cpp</span>                   <span class="comment">Kiểm thử toán tử GA và local search</span>
+├── <span class="dir">python/</span>                           <span class="comment">Chạy thí nghiệm, benchmark, vẽ hình</span>
+├── <span class="dir">cluster/</span>                          <span class="comment">Script cài OpenMPI, sync code, chạy cluster</span>
+├── <span class="dir">data/</span>                             <span class="comment">Tọa độ thành phố</span>
+├── <span class="dir">results/</span>                          <span class="comment">CSV, PNG, báo cáo cluster, lịch sử hội tụ</span>
+└── <span class="dir">report/</span>                           <span class="comment">Tài liệu báo cáo</span></code></pre>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Vai trò</th>
+          <th>Điểm cần hiểu</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>cpp/ga_core.hpp</code></td>
+          <td>Lõi thuật toán di truyền dùng chung cho bản tuần tự và MPI.</td>
+          <td><code>Tour</code>, <code>distance_matrix</code>, <code>tour_length</code>, <code>order_crossover</code>, <code>mutate</code>, <code>evolve_one_gen</code>.</td>
+        </tr>
+        <tr>
+          <td><code>cpp/local_search.hpp</code></td>
+          <td>Tối ưu cục bộ để cải thiện cá thể tốt nhất.</td>
+          <td>2-opt đảo đoạn để bỏ cạnh xấu; Or-opt di chuyển đoạn ngắn sang vị trí tốt hơn.</td>
+        </tr>
+        <tr>
+          <td><code>cpp/tsp_island.cpp</code></td>
+          <td>Chương trình MPI chính.</td>
+          <td>Khởi tạo đảo, vòng lặp thế hệ, đồng bộ global best, di cư một phần, đo thời gian.</td>
+        </tr>
+        <tr>
+          <td><code>python/experiments.py</code></td>
+          <td>Chạy 3 thí nghiệm chính cho báo cáo.</td>
+          <td><code>size</code>, <code>gran</code>, <code>speedup</code>.</td>
+        </tr>
+        <tr>
+          <td><code>results/cluster_report.md</code></td>
+          <td>Báo cáo chạy thật trên cluster 4 node.</td>
+          <td>Setup, lỗi đã xử lý, kết quả 48 rank, phân tích latency/bandwidth.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="algorithm">
+    <h2>3. Thuật Toán Di Truyền</h2>
+
+    <h3>3.1 Biểu diễn nghiệm</h3>
+    <p>
+      Trong mã nguồn, <code>Tour</code> là <code>std::vector&lt;int&gt;</code>. Một tour hợp lệ phải chứa đủ các thành phố từ <code>0</code> đến <code>N-1</code>, không thiếu và không lặp.
+    </p>
+    <div class="formula">tour = [0, 4, 2, 1, 3]  ⇒  0 → 4 → 2 → 1 → 3 → 0</div>
+
+    <h3>3.2 Các bước chính</h3>
+    <div class="flow">
+      <div class="flow-row">
+        <div class="num">1</div>
+        <div class="flow-card"><strong>Đọc thành phố.</strong> <code>read_cities</code> đọc file tọa độ, mỗi dòng là một điểm <code>x y</code>.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">2</div>
+        <div class="flow-card"><strong>Tính khoảng cách.</strong> <code>distance_matrix</code> tính trước khoảng cách Euclid giữa mọi cặp thành phố. Bước này tốn <code>O(N²)</code>.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">3</div>
+        <div class="flow-card"><strong>Khởi tạo quần thể.</strong> Tạo <code>pop_size</code> hành trình ngẫu nhiên bằng cách shuffle danh sách thành phố.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">4</div>
+        <div class="flow-card"><strong>Chọn lọc.</strong> Dùng tournament selection: chọn ngẫu nhiên <code>k</code> cá thể, lấy cá thể có hành trình ngắn nhất trong nhóm.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">5</div>
+        <div class="flow-card"><strong>Lai ghép OX.</strong> Giữ một đoạn liên tiếp từ cha thứ nhất, sau đó điền các thành phố còn lại theo thứ tự của cha thứ hai.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">6</div>
+        <div class="flow-card"><strong>Đột biến.</strong> Có thể đổi chỗ hai thành phố hoặc đảo một đoạn để tạo thêm đa dạng.</div>
+      </div>
+      <div class="flow-row">
+        <div class="num">7</div>
+        <div class="flow-card"><strong>Giữ cá thể ưu tú.</strong> Cá thể tốt nhất được giữ lại để thế hệ sau không kém đi.</div>
+      </div>
+    </div>
+
+    <h3>3.3 Giả mã bản tuần tự</h3>
+<pre><code>Đọc danh sách thành phố
+Tạo ma trận khoảng cách D
+Khởi tạo quần thể P hành trình ngẫu nhiên
+Tính độ dài từng hành trình
+
+for mỗi thế hệ:
+    giữ cá thể tốt nhất
+    while quần thể mới chưa đủ:
+        p1 = chọn lọc theo giải đấu
+        p2 = chọn lọc theo giải đấu
+        child = lai ghép OX(p1, p2)
+        đột biến child
+        thêm child vào quần thể mới
+    tính lại độ dài hành trình
+
+in hành trình tốt nhất</code></pre>
+
+    <div class="panel note">
+      <h3>Vai trò của 2-opt và Or-opt</h3>
+      <p>
+        Khi bật <code>--twoopt</code>, chương trình định kỳ lấy cá thể tốt nhất của đảo rồi gọi <code>polish</code>. Hàm này chạy 2-opt và Or-opt để cải thiện cục bộ. Đây không phải thuật toán chính, mà là bước tinh chỉnh giúp nghiệm tốt hơn.
+      </p>
+    </div>
+  </section>
+
+  <section id="parallel">
+    <h2>4. Song Song Hóa Bằng MPI Mô Hình Đảo</h2>
+    <p>
+      Bản song song nằm trong <code>cpp/tsp_island.cpp</code>. Mỗi tiến trình MPI là một island độc lập, có quần thể riêng, seed riêng và lịch sử hội tụ riêng. Nếu chạy <code>mpirun -np 4</code>, chương trình có 4 đảo cùng tìm kiếm.
+    </p>
+
+    <div class="grid">
+      <div class="tile">
+        <b>Độc lập</b>
+        Mỗi rank chạy GA riêng, nên các đảo khám phá các vùng nghiệm khác nhau.
+      </div>
+      <div class="tile">
+        <b>Đồng bộ định kỳ</b>
+        Cứ mỗi <code>--sync</code> thế hệ, các rank tìm nghiệm tốt nhất toàn cục.
+      </div>
+      <div class="tile">
+        <b>Di cư một phần</b>
+        Không sao chép nguyên nghiệm tốt nhất. Các đảo chỉ ghép một đoạn tốt qua OX để giữ đa dạng.
+      </div>
+    </div>
+
+    <h3>Luồng MPI</h3>
+<pre><code>for mỗi thế hệ:
+    mỗi rank tự evolve_one_gen quần thể của mình
+
+    nếu đến chu kỳ sync:
+        mỗi rank lấy nghiệm tốt nhất cục bộ
+        MPI_Allreduce(MINLOC) tìm nghiệm tốt nhất toàn cục và rank sở hữu nó
+        rank thắng MPI_Bcast toàn bộ hành trình tốt nhất
+
+        các rank khác:
+            chọn vài cá thể tệ nhất
+            lai OX giữa global best và cá thể ngẫu nhiên local
+            thay cá thể tệ bằng con lai mới
+
+    nếu global best không cải thiện đủ lâu:
+        tất cả rank dừng cùng lúc</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Lệnh MPI</th>
+          <th>Mục đích</th>
+          <th>Dữ liệu</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>MPI_Allreduce(MINLOC)</code></td>
+          <td>Tìm độ dài nhỏ nhất và rank sở hữu nghiệm đó.</td>
+          <td>Một cặp <code>(best_len, rank)</code>.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Bcast</code></td>
+          <td>Rank thắng phát hành trình tốt nhất cho tất cả rank.</td>
+          <td>Mảng <code>N</code> số nguyên.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Send</code> / <code>MPI_Recv</code></td>
+          <td>Cuối chương trình, rank thắng gửi tour tốt nhất về rank 0 để in và ghi file.</td>
+          <td>Mảng <code>N</code> số nguyên.</td>
+        </tr>
+        <tr>
+          <td><code>MPI_Gather</code></td>
+          <td>Rank 0 gom thời gian tính toán, truyền thông và tổng thời gian của từng rank.</td>
+          <td>Các số đo per-rank.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="panel warn">
+      <h3>Vì sao không clone nguyên global best?</h3>
+      <p>
+        Nếu mọi đảo nhận cùng một nghiệm tốt nhất và thay thẳng vào quần thể, các quần thể sẽ nhanh chóng giống nhau, làm mất đa dạng. Thiết kế của repo chỉ di cư một phần: global best là một cha trong OX, cá thể local là cha còn lại. Như vậy đoạn đường tốt được lan truyền nhưng mỗi đảo vẫn khác nhau.
+      </p>
+    </div>
+  </section>
+
+  <section id="complexity">
+    <h2>5. Thời Gian Chạy Và Độ Phức Tạp</h2>
+    <p>
+      Ký hiệu: <code>N</code> là số thành phố, <code>P</code> là số cá thể trên một đảo, <code>G</code> là số thế hệ, <code>R</code> là số rank, <code>S</code> là chu kỳ sync, <code>M</code> là số cá thể di cư mỗi lần sync.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Thành phần</th>
+          <th>Chi phí xấp xỉ</th>
+          <th>Ý nghĩa</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ma trận khoảng cách</td>
+          <td><code>O(N²)</code> thời gian và bộ nhớ</td>
+          <td>Tính trước khoảng cách mọi cặp thành phố.</td>
+        </tr>
+        <tr>
+          <td>Tính độ dài một hành trình</td>
+          <td><code>O(N)</code></td>
+          <td>Cộng <code>N</code> cạnh của chu trình.</td>
+        </tr>
+        <tr>
+          <td>OX crossover</td>
+          <td><code>O(N)</code></td>
+          <td>Sao chép một đoạn và điền các thành phố còn lại.</td>
+        </tr>
+        <tr>
+          <td>Một thế hệ trên một đảo</td>
+          <td><code>O(P·N + P log P)</code></td>
+          <td>Tạo gần <code>P</code> con và sắp xếp để giữ cá thể tốt nhất.</td>
+        </tr>
+        <tr>
+          <td>2-opt / Or-opt</td>
+          <td>Khoảng <code>O(N²)</code> mỗi lượt</td>
+          <td>Chỉ chạy khi bật <code>--twoopt</code>.</td>
+        </tr>
+        <tr>
+          <td>Một lần sync MPI</td>
+          <td>Phụ thuộc latency + <code>O(N)</code> dữ liệu broadcast</td>
+          <td>Payload nhỏ nhưng cần collective operation qua nhiều rank.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="formula">T tuần tự ≈ O(N²) + G · O(P·N + P log P)</div>
+    <div class="formula">T mỗi rank ≈ O(N²) + G · O(Pᵢ·N + Pᵢ log Pᵢ) + (G/S) · T_sync</div>
+    <div class="formula">Thời gian thực chạy = max(total_s của các rank)</div>
+
+    <div class="panel note">
+      <p>
+        Khi bài toán nhỏ hoặc sync quá dày, <code>T_sync</code> có thể lớn hơn thời gian tính toán. Khi đó tăng thêm rank không làm nhanh hơn, thậm chí làm chậm hơn. Đây chính là điều xuất hiện trong kết quả cluster với <code>N=400</code>.
+      </p>
+    </div>
+  </section>
+
+  <section id="cluster">
+    <h2>6. Kết Quả Cluster 4 Node</h2>
+    <p>
+      Kết quả dưới đây lấy từ <code>results/cluster_report.md</code>. Cluster gồm 4 node thật, OpenMPI 5.0.9, chạy tối đa 48 rank bằng hostfile <code>cluster/hosts.seq48</code>. Đây là thực nghiệm thật, không phải giả lập trên một máy.
+    </p>
+
+    <h3>6.1 Setup và phát hiện quan trọng</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Node</th>
+          <th>Hostname</th>
+          <th>User</th>
+          <th>Core</th>
+          <th>Vai trò</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>node1</td><td>DESKTOP-9PH6P60</td><td>bao</td><td>16</td><td>worker</td></tr>
+        <tr><td>node2</td><td>duck</td><td>duck</td><td>12</td><td>launcher</td></tr>
+        <tr><td>node3</td><td>LAPTOP-83S2JJ4P</td><td>acer</td><td>16</td><td>worker</td></tr>
+        <tr><td>node4</td><td>LAPTOP-B2AUBVCH</td><td>khainx</td><td>16</td><td>worker</td></tr>
+      </tbody>
+    </table>
+
+    <div class="panel warn">
+      <p>
+        Phát hiện quan trọng nhất là <code>cluster/run_cluster.sh</code> dùng <code>--map-by seq</code>. Với mapper này, <code>slots=N</code> trong hostfile không đủ; hostfile cần đúng số dòng tương ứng số rank. Hostfile cũ chỉ có 4 dòng nên các lần chạy trước vô tình chỉ dùng 1 core mỗi máy. Sau khi tạo <code>cluster/hosts.seq48</code> gồm 48 dòng round-robin, cluster mới chạy đủ 48 rank.
+      </p>
+    </div>
+
+    <h3>6.2 Xác minh migration hoạt động</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Thế hệ</th>
+          <th>rank0</th>
+          <th>rank1</th>
+          <th>rank2</th>
+          <th>rank3</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>19, trước sync</td>
+          <td>7436.15</td>
+          <td>7525.27</td>
+          <td><strong>7264.41</strong></td>
+          <td>7568.60</td>
+        </tr>
+        <tr>
+          <td>21, sau sync@20</td>
+          <td>7428.22</td>
+          <td>7459.67 ↓</td>
+          <td><strong>7258.49</strong></td>
+          <td>7263.26 ↓↓</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Sau mốc sync, các rank kém hơn cải thiện rõ và tiến gần rank đang giữ nghiệm tốt nhất. Chúng không bằng hệt nhau, chứng tỏ chương trình không clone nguyên nghiệm mà di cư một phần đúng như thiết kế.
+    </p>
+
+    <h3>6.3 Runtime theo số thành phố</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>N</th>
+          <th>Total (s)</th>
+          <th>Comm (s)</th>
+          <th>Compute (s)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>100</td><td>1.243</td><td>1.151</td><td>0.092</td></tr>
+        <tr><td>200</td><td>1.022</td><td>0.877</td><td>0.145</td></tr>
+        <tr><td>400</td><td>1.741</td><td>1.403</td><td>0.338</td></tr>
+        <tr><td>800</td><td>2.982</td><td>1.927</td><td>1.055</td></tr>
+        <tr><td>1200</td><td>4.249</td><td>2.481</td><td>1.769</td></tr>
+        <tr><td>2400</td><td>8.192</td><td>3.809</td><td>4.383</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Khi <code>N</code> tăng, phần tính toán tăng rõ. Ở <code>N=2400</code>, compute đã lớn hơn comm, nghĩa là bài toán đủ lớn thì song song hóa bắt đầu đáng giá hơn so với chi phí giao tiếp.
+    </p>
+
+    <h3>6.4 Speedup với N=400</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Procs</th>
+          <th>Total (s)</th>
+          <th>Comm (s)</th>
+          <th>Compute (s)</th>
+          <th>Speedup</th>
+          <th>Hiệu suất</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>0.633</td><td>0.000</td><td>0.633</td><td>1.00</td><td>1.00</td></tr>
+        <tr><td>2</td><td>0.456</td><td>0.211</td><td>0.244</td><td>1.39</td><td>0.70</td></tr>
+        <tr><td>4</td><td>0.606</td><td>0.502</td><td>0.105</td><td>1.05</td><td>0.26</td></tr>
+        <tr><td>8</td><td>0.756</td><td>0.700</td><td>0.056</td><td>0.84</td><td>0.10</td></tr>
+        <tr><td>16</td><td>0.902</td><td>0.870</td><td>0.032</td><td>0.70</td><td>0.04</td></tr>
+        <tr><td>32</td><td>1.290</td><td>1.293</td><td>~0.00</td><td>0.49</td><td>0.02</td></tr>
+        <tr><td>48</td><td>1.303</td><td>1.282</td><td>0.021</td><td>0.49</td><td>0.01</td></tr>
+      </tbody>
+    </table>
+
+    <div class="panel warn">
+      <p>
+        Với <code>N=400</code>, bài toán nhỏ so với chi phí đồng bộ. Tăng rank làm lượng việc mỗi rank giảm, nhưng số lần <code>Allreduce</code> và <code>Bcast</code> không giảm. Vì vậy speedup thực tế giảm khi tăng procs và tụt dưới 1 sau 4-8 rank. Đây không phải lỗi thuật toán, mà là giới hạn do chi phí giao tiếp MPI.
+      </p>
+    </div>
+
+    <h3>6.5 Load balance</h3>
+    <p>
+      Thí nghiệm granularity với <code>N=400</code>, 48 rank cho <strong>idle skew = 1.6%</strong>. Đây là kết quả tốt: các rank có thời gian chờ lệch nhau rất ít, dù cluster gồm máy 12 core và 16 core.
+    </p>
+
+    <div class="figure-grid">
+      <figure>
+        <img src="../results/exp_size.png" alt="Runtime theo số thành phố">
+        <figcaption><code>exp_size.png</code>: runtime tăng theo kích thước bài toán.</figcaption>
+      </figure>
+      <figure>
+        <img src="../results/exp_speedup.png" alt="Speedup trên cluster">
+        <figcaption><code>exp_speedup.png</code>: speedup giảm khi bài nhỏ nhưng rank nhiều.</figcaption>
+      </figure>
+      <figure>
+        <img src="../results/exp_gran.png" alt="Load balance giữa các rank">
+        <figcaption><code>exp_gran.png</code>: compute, comm và idle theo từng rank.</figcaption>
+      </figure>
+      <figure>
+        <img src="../results/speedup_cluster.png" alt="Benchmark cluster độc lập">
+        <figcaption><code>speedup_cluster.png</code>: kiểm tra chéo bằng <code>benchmark.py</code>.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="network">
+    <h2>7. Nhận Xét Về Mạng Và Nút Thắt</h2>
+    <p>
+      Báo cáo cluster đo latency trung bình từ node2 đến các node khác khoảng 8-13ms. Bandwidth thực tế qua SSH khoảng 149-169 Mbit/s. Tuy nhiên với <code>N=400</code>, mỗi lần broadcast tour chỉ truyền khoảng <code>400 × 4 = 1600 byte</code>, tức khoảng 1.6KB.
+    </p>
+
+    <div class="formula">1.6KB / 20MB/s ≈ 0.08ms</div>
+
+    <p>
+      Nếu nghẽn do bandwidth, thời gian truyền 1.6KB phải rất nhỏ. Nhưng thực nghiệm 48 procs đo được <code>comm_s = 1.282s</code> cho 20 lần sync, tức khoảng <strong>64ms mỗi lần sync</strong>. Con số này phù hợp với latency của các collective operation qua nhiều rank hơn là kích thước dữ liệu.
+    </p>
+
+    <div class="panel ok">
+      <h3>Kết luận mạng</h3>
+      <p>
+        Nút thắt chính khi tăng rank ở bài toán nhỏ là <strong>latency của đồng bộ tập thể</strong>, không phải bandwidth. Muốn cải thiện scaling cần tăng kích thước bài toán, tăng lượng tính toán mỗi rank, hoặc tăng <code>--sync</code> để đồng bộ thưa hơn.
+      </p>
+    </div>
+  </section>
+
+  <section id="run">
+    <h2>8. Cách Build Và Chạy</h2>
+
+    <h3>Build C++</h3>
+<pre><code>cd cpp
+make
+make test</code></pre>
+
+    <h3>Chạy local một máy</h3>
+<pre><code>mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20</code></pre>
+
+    <h3>Chạy trên cluster</h3>
+<pre><code>bash cluster/run_cluster.sh cluster/hosts.seq48 48 \
+  ./cpp/tsp_island data/cities_400.txt --gens 400 --sync 20</code></pre>
+
+    <h3>Ghi tour, history và stats</h3>
+<pre><code>mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt \
+  --gens 500 --sync 20 \
+  --out results/tour.txt \
+  --stats results/stats.csv</code></pre>
+
+    <h3>Chạy thí nghiệm báo cáo</h3>
+<pre><code>python3 python/experiments.py size --procs 48 --sizes 100 200 400 800 1200 2400 --hostfile cluster/hosts.seq48
+python3 python/experiments.py gran --procs 48 --size 400 --hostfile cluster/hosts.seq48
+python3 python/experiments.py speedup --procs 1 2 4 8 16 32 48 --size 400 --hostfile cluster/hosts.seq48</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Tham số</th>
+          <th>Ý nghĩa</th>
+          <th>Ảnh hưởng</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>--gens</code></td>
+          <td>Số thế hệ tối đa.</td>
+          <td>Tăng thì nghiệm có thêm thời gian cải thiện, runtime tăng.</td>
+        </tr>
+        <tr>
+          <td><code>--pop</code></td>
+          <td>Số cá thể trên mỗi đảo.</td>
+          <td>Tăng thì đa dạng hơn nhưng mỗi thế hệ chậm hơn.</td>
+        </tr>
+        <tr>
+          <td><code>--sync</code></td>
+          <td>Chu kỳ đồng bộ global best.</td>
+          <td>Nhỏ quá thì tốn comm; lớn quá thì nghiệm tốt lan truyền chậm.</td>
+        </tr>
+        <tr>
+          <td><code>--migrants</code></td>
+          <td>Số cá thể được thay bằng con lai từ global best mỗi lần sync.</td>
+          <td>Tăng thì chia sẻ mạnh hơn nhưng dễ giảm đa dạng.</td>
+        </tr>
+        <tr>
+          <td><code>--patience</code></td>
+          <td>Dừng sớm khi global best không cải thiện.</td>
+          <td>Giảm thời gian nếu thuật toán đã hội tụ.</td>
+        </tr>
+        <tr>
+          <td><code>--twoopt</code></td>
+          <td>Chu kỳ gọi 2-opt/Or-opt.</td>
+          <td>Nghiệm thường tốt hơn nhưng runtime tăng.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="conclusion">
+    <h2>9. Kết Luận</h2>
+    <div class="panel ok">
+      <p>
+        Thuật toán Island-GA trong repo hoạt động đúng: mỗi island tiến hóa độc lập, định kỳ tìm global best bằng <code>MPI_Allreduce(MINLOC)</code>, phát nghiệm bằng <code>MPI_Bcast</code>, rồi di cư một phần bằng OX crossover để giữ đa dạng. Kết quả lịch sử hội tụ chứng minh migration thật sự có tác dụng.
+      </p>
+      <p>
+        Trên cluster 4 node, cân bằng tải tốt với idle skew 1.6%. Tuy nhiên với bài toán nhỏ như <code>N=400</code>, tăng lên quá nhiều rank làm chương trình chậm hơn vì latency của các collective operation lớn hơn phần tính toán. Khi tăng kích thước bài toán lên <code>N=2400</code>, compute vượt comm, cho thấy song song hóa có ý nghĩa hơn ở bài lớn.
+      </p>
+      <p>
+        Nhận xét cuối cùng: code song song hóa đúng, nhưng muốn speedup thực tế tốt cần chọn bài toán đủ lớn hoặc giảm tần suất đồng bộ bằng cách tăng <code>--sync</code>.
+      </p>
+    </div>
+
+    <h3>Thứ tự đọc mã nguồn nên theo</h3>
+    <ol>
+      <li><code>README.md</code> để nắm cách build và chạy.</li>
+      <li><code>cpp/ga_core.hpp</code> để hiểu biểu diễn nghiệm và toán tử GA.</li>
+      <li><code>cpp/tsp_sequential.cpp</code> để hiểu bản tuần tự.</li>
+      <li><code>cpp/tsp_island.cpp</code> để hiểu MPI, migration và đo thời gian.</li>
+      <li><code>python/experiments.py</code> để hiểu cách sinh bảng và hình báo cáo.</li>
+      <li><code>results/cluster_report.md</code> để xem thực nghiệm cluster thật.</li>
+    </ol>
+  </section>
+</main>
+</body>
+</html>

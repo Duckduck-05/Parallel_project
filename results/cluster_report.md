@@ -226,19 +226,87 @@ cho 201.55s nhưng gens=1300 chỉ 86-95s ở lần đo khác; nguyên nhân là
 chia sẻ trên các máy laptop Windows, không phải lỗi đo. Số liệu N*/gens* cuối đã được xác nhận
 ổn định qua phép đo trực tiếp.)
 
+### 8.3 Bảng sạch: runtime vs N tại gens=10500 CỐ ĐỊNH (procs=48, sync=20)
+
+Để phần "tìm N" tách bạch rõ với mục 3.1 (vốn cố định gens=400, quét N) - bảng dưới đây cố định
+**gens=10500** (giá trị đã chọn cho N\*) và chỉ quét N, cho thấy quan hệ runtime-vs-N "sạch"
+dùng để minh hoạ vì sao N=2400 được chọn:
+
+| N | total (s) | comm (s) | compute (s) |
+|---|---|---|---|
+| 1200 | 54.54 | 25.90 | 28.65 |
+| 1800 | 86.99 | 34.33 | 52.66 |
+| 2400 | 154.27 | 64.05 | 90.22 |
+
+Tăng trưởng từ N=1200→2400 (×2) cho total ×2.83 - siêu tuyến tính nhẹ (khớp với phân tích cache
+ở mục 8.1), nhưng vẫn nằm gọn trong khoảng mong muốn ở N=2400.
+
+### 8.4 Lệnh chính xác đã chạy (N\* search)
+
+```bash
+export PATH=/opt/openmpi-5.0.9/bin:$PATH LD_LIBRARY_PATH=/opt/openmpi-5.0.9/lib
+# dò sơ bộ qua N (gens=400 cố định)
+bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_3200.txt --gens 400 --sync 20
+bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_6400.txt --gens 400 --sync 20   # timeout
+# dò qua gens tại N=4000 (an toàn RAM) rồi N=2400 (giá trị cuối)
+bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_4000.txt --gens 1500 --sync 20
+bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_4000.txt --gens 1300 --sync 20
+bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_2400.txt --gens 7300  --sync 20
+bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_2400.txt --gens 10500 --sync 20   # N*/gens* CUỐI CÙNG
+# bảng sạch mục 8.3
+bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_1200.txt --gens 10500 --sync 20
+bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_1800.txt --gens 10500 --sync 20
+```
+
 ## 9. Granularity tại N\* (N=2400, gens=10500, procs=48)
 
 ```
 idle skew = 1.8%  =>  BALANCED OK
 ```
 
-Stacked bar compute+comm/rank: `results/exp_gran.png` (dữ liệu: `results/exp_gran.csv`, 48
-dòng - mỗi dòng 1 rank với `compute_s, comm_s, idle_s`). Compute dao động 65-130s/rank tùy vị
-trí trong cây collective (rank "owner" giữ global-best tốn nhiều compute hơn vì broadcast ra,
-các rank khác chờ comm nhiều hơn) — nhưng **idle time luôn ~0** (trừ 4 rank có idle≈2.79s, vẫn
-<2% tổng thời gian) → tải vẫn cân bằng tốt dù compute/comm lệch nhau giữa các rank.
+**Lệnh chính xác:**
+```bash
+python3 python/experiments.py gran --procs 48 --size 2400 --gens 10500 --sync 20 \
+    --hostfile cluster/hosts.seq48
+```
+
+`results/exp_gran.png` là **stacked bar đúng theo yêu cầu**: với mỗi rank (trục X = 48 rank),
+cột chồng gồm 3 phần `compute` (xanh) + `comm` (cam) + `idle/wait` (xám) (đọc trực tiếp từ
+code vẽ trong `python/experiments.py::exp_gran`, không suy diễn). Dữ liệu: `results/exp_gran.csv`
+(48 dòng, cột `rank,compute_s,comm_s,idle_s`).
+
+Compute dao động 65-130s/rank, comm dao động ngược lại (22-83s/rank) - **đây KHÔNG phải do rank
+"owner" tốn compute để broadcast** (broadcast/Bcast/Allreduce bản chất là thao tác comm/chờ,
+không tốn compute thêm cho người gửi). Nguyên nhân thực tế hợp lý hơn là tổ hợp của:
+1. **Phần cứng không đồng nhất** - node3 chậm hơn (RAM thấp, mục 14.2) khiến các rank trên đó
+   tốn nhiều thời gian comm/chờ hơn so với rank trên node1/2/4 nhanh hơn;
+2. **GA có yếu tố ngẫu nhiên (stochastic)** - mỗi island hội tụ với tốc độ khác nhau (tuỳ seed,
+   tuỳ việc cá thể đó có "trúng" cải tiến tốt sớm hay không), nên compute thực tế biến thiên
+   theo rank dù code chạy y hệt nhau;
+3. **Chờ đồng bộ (synchronization wait)** - rank xử lý nhanh phải đợi rank chậm nhất ở mỗi điểm
+   `--sync` (đây mới là phần lớn của "comm_s" đo được, không phải chi phí truyền dữ liệu thuần).
+
+Bù lại, **idle time luôn ~0** (trừ 4 rank có idle≈2.79s, vẫn <2% tổng thời gian) → dù
+compute/comm lệch nhau khá nhiều giữa các rank, không có rank nào thực sự "rảnh" - tải vẫn
+được phân bổ và sử dụng hợp lý.
 
 ## 10. Speedup tại 2×N\* = 4800 thành phố, procs = 1→48 (an toàn RAM)
+
+**Cấu hình đầy đủ: N=4800, gens=400, sync=20, total population=480 (mặc định của
+`experiments.py speedup` - chia đều `pop/island = 480 // procs`, đây là kiểu đo strong-scaling
+"giữ tổng khối lượng việc cố định", KHÁC với mục 8/9 nơi pop=200/island cố định bất kể số
+rank).**
+
+**Lệnh chính xác:**
+```bash
+python3 python/experiments.py speedup --procs 1 2 4 8 16 32 48 --size 4800 \
+    --gens 400 --sync 20 --hostfile cluster/hosts.seq48
+```
+
+`results/exp_speedup.png` gồm **2 panel cạnh nhau** (đọc trực tiếp từ code vẽ trong
+`python/experiments.py::exp_speedup`): panel trái = **runtime** theo số process, 2 đường
+"with communication" và "without communication"; panel phải = **speedup S(p)=T(1)/T(p)**, 2
+đường tương tự + đường "ideal" (speedup tuyến tính) để đối chiếu.
 
 | procs | total (s) | comm (s) | compute (s) | speedup (kể cả comm) | speedup (không comm) | hiệu suất |
 |---|---|---|---|---|---|---|
@@ -257,6 +325,15 @@ trực tiếp giả thuyết đã nêu ở mục 4.3: **kích thước bài toá
 overhead đồng bộ** quan sát thấy ở N nhỏ.
 
 ## 11. So sánh `--sync` 0 / 20 / 100 / 200 (N=4800, procs=48, gens=400)
+
+**Lệnh chính xác:**
+```bash
+export PATH=/opt/openmpi-5.0.9/bin:$PATH LD_LIBRARY_PATH=/opt/openmpi-5.0.9/lib
+for s in 0 20 100 200; do
+  bash cluster/run_cluster.sh cluster/hosts.seq48 48 ./cpp/tsp_island data/cities_4800.txt \
+      --gens 400 --sync $s
+done
+```
 
 | sync | total (s) | comm (s) | compute (s) | Best length |
 |---|---|---|---|---|
@@ -280,6 +357,22 @@ bằng tốc độ máy lấn át hiệu ứng latency thuần.
 
 ## 12. Correctness validation
 
+**Lệnh chính xác:**
+```bash
+export PATH=/opt/openmpi-5.0.9/bin:$PATH LD_LIBRARY_PATH=/opt/openmpi-5.0.9/lib
+# case N=8 (brute-force feasible)
+python3 data/generate_cities.py --n 8 --mode random --seed 42 --out /tmp/cities_8.txt
+mpirun --oversubscribe -np 4 ./cpp/tsp_island /tmp/cities_8.txt --gens 500 --sync 20 --out /tmp/verify8
+python3 python/validate_tour.py /tmp/cities_8.txt "2 4 7 0 1 3 6 5" 240.49
+
+# case N=200 (permutation + recompute only, N quá lớn cho brute-force)
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_200.txt --gens 500 --sync 20 --out /tmp/verify200
+# -> stdout in "Best length: 2348.01" + dòng "Route: <200 số, permutation 0..199>"
+python3 python/validate_tour.py data/cities_200.txt "$(grep '^Route' /tmp/v200.txt | sed 's/Route *: *//')" 2348.01
+```
+(route N=200 là 200 số nguyên, quá dài để in trực tiếp trong báo cáo - xem file gốc
+`/tmp/v200.txt` hoặc chạy lại lệnh trên để tái tạo.)
+
 Viết script kiểm tra độc lập (Python, không dùng lại code C++) gồm 3 mức:
 
 1. **Tour là permutation hợp lệ** - đủ N thành phố, mỗi thành phố xuất hiện đúng 1 lần.
@@ -296,6 +389,12 @@ phải số ảo/bug hiển thị); ở quy mô đủ nhỏ để kiểm chứng
 lời giải tối ưu toàn cục.
 
 ## 13. Thống kê LOC (Lines of Code) theo file/module
+
+**Lệnh chính xác:**
+```bash
+wc -l cpp/*.hpp cpp/*.cpp python/*.py cluster/*.sh
+git log --format='%an' | sort -u   # đếm số tác giả
+```
 
 | Module | File | LOC |
 |---|---|---|
@@ -316,7 +415,57 @@ lời giải tối ưu toàn cục.
 Số tác giả theo `git log` (2 người: Duck, Quốc Bảo) → **850 dòng/người** (4 người trong nhóm
 vận hành cluster → **425 dòng/người**) — cả hai cách tính đều **vượt mốc 250 dòng/người**.
 
-## 14. File kết quả (vòng 2, bổ sung)
+## 14. Thử bỏ node3, chạy "full tốc lực" với 3 node còn lại
+
+Giả thuyết cần kiểm chứng: nếu node3 (RAM thấp nhất, 3.7GB) là "vấn đề", loại nó ra và chạy hết
+công suất 3 node còn lại có nhanh hơn không? Dùng lại đúng config N\*/gens\* (N=2400,
+gens=10500, sync=20, pop=200/island - so sánh ngang được vì mỗi rank vẫn làm đúng cùng khối
+lượng việc, không scale theo proc count như thí nghiệm speedup ở mục 10).
+
+### 14.1 Lần thử đầu tiên: dùng "hết" 16 core của node1/node4 → SAI LẦM, chậm hơn
+
+`lscpu` cho thấy **cả 3 máy đều dùng hyperthreading** (8 core vật lý × 2 thread = 16 "CPU(s)"
+theo Linux, riêng node2 chỉ 6 core vật lý × 2 thread = 12). Cấu hình gốc cap mọi node ở 12 rank
+(đúng = số thread tối đa của máy yếu nhất - node2) là **có chủ đích**, không phải tuỳ tiện.
+
+| Cấu hình | Ranks | total (s) | comm (s) | compute (s) |
+|---|---|---|---|---|
+| 4 node, 12 rank/máy (gốc, có node3) | 48 | 154.27 | 64.05 | 90.22 |
+| 3 node, **16 rank**/máy node1+node4, 12 ở node2 (bỏ node3, dùng hết HT) | 44 | **227.61** ❌ chậm hơn | 115.62 | 111.99 |
+
+Dùng hết 16 thread logic trên CPU 8-core thật **oversubscribe hyperthreading 2×** (thay vì 1.5×
+như cấu hình gốc) — HT chia sẻ ALU/cache của lõi vật lý, không cho speedup tuyến tính, nên ép
+đủ 16 rank/máy làm chậm đi cả compute (90→112s) và comm (64→116s, do rank chậm hơn kéo theo
+chờ đồng bộ lâu hơn). **Kết luận tạm: bỏ node3 theo cách này phản tác dụng - không phải vì
+thiếu node3, mà vì đã vi phạm chính giới hạn HT mà cấu hình gốc cố tình tránh.**
+
+### 14.2 Lần thử đúng cách: vẫn cap 12 rank/máy, chỉ bỏ node3
+
+| Cấu hình | Ranks | total (s) | comm (s) | compute (s) |
+|---|---|---|---|---|
+| 4 node, 12 rank/máy (gốc, có node3) | 48 | 154.27 | 64.05 | 90.22 |
+| **3 node, 12 rank/máy (bỏ node3, tôn trọng cap HT)** | 36 | **141.81** ✅ nhanh hơn ~8% | 56.84 | 84.97 |
+
+Khi loại bỏ đúng biến nhiễu (không oversubscribe HT), **bỏ node3 thực sự nhanh hơn** ~8%
+(141.81s vs 154.27s) — xác nhận node3 đúng là rank chậm nhất kéo theo thời gian chờ đồng bộ.
+Đáng chú ý: `lscpu` cho thấy node3 có **CPU giống hệt node4** (Intel i5-12500H, 8 core/16
+thread) — node3 chậm hơn **không phải vì CPU yếu hơn**, mà thuần do RAM thấp (3.7GB so với
+7.7GB của node4) gây nhiều cache-miss/áp lực bộ nhớ hơn ở cùng workload, dù vẫn trong vùng an
+toàn (không tới mức swap như N=6400 ở mục 8).
+
+### 14.3 Kết luận tổng hợp
+
+1. **node3 đúng là straggler nhẹ** (RAM thấp → chậm hơn ~8% dù CPU giống node4) - loại nó ra
+   *đúng cách* (giữ cap HT) giúp nhanh hơn.
+2. Nhưng **"full tốc lực" theo nghĩa dùng hết số core logic KHÔNG giúp gì** - ngược lại, làm
+   chậm hơn cả việc giữ node3, vì hyperthreading không scale tuyến tính và 2× oversubscribe gây
+   tranh chấp tài nguyên lõi vật lý. Quyết định cap 12 rank/máy trong lịch sử commit của dự án
+   (`cluster/hosts: cap all nodes to 12 slots`) là đúng đắn và đã được kiểm chứng lại ở đây.
+3. Bài học phương pháp luận: phải tách biệt 2 biến (loại node vs. tăng rank/máy) khi so sánh,
+   nếu không sẽ rút ra kết luận sai (lần thử 14.1 nhìn riêng lẻ sẽ kết luận nhầm "bỏ node3 không
+   giúp gì", trong khi thực ra là do biến nhiễu HT).
+
+## 15. File kết quả (vòng 2, bổ sung)
 
 - N*/gens* search: số liệu trong mục 8 (không có file CSV riêng, đo trực tiếp qua stdout)
 - `results/exp_gran.{csv,png}` (đã ghi đè bằng config N\*=2400, gens\*=10500, procs=48)
@@ -325,3 +474,5 @@ vận hành cluster → **425 dòng/người**) — cả hai cách tính đều 
 - `data/cities_4000.txt`, `data/cities_4800.txt`, `data/cities_6400.txt` (city files mới sinh
   trong quá trình dò N*)
 - Script correctness validation: `python/validate_tour.py` (độc lập, không dùng lại code C++)
+- Hostfile dùng cho mục 14: `cluster/hosts.no3` (44 rank, 16/12/16 - oversubscribe HT, để đối
+  chứng), `cluster/hosts.no3.12` (36 rank, 12/12/12 - cap đúng, kết quả nhanh hơn)
