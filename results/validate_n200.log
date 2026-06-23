@@ -1,0 +1,3 @@
+[OK] route is a valid permutation of 200 cities, each exactly once
+[OK] recomputed length = 2348.0052  (reported = 2348.0100, diff = 0.004796)
+[SKIP] n too large for brute force

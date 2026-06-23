@@ -1,0 +1,4 @@
+[OK] route is a valid permutation of 8 cities, each exactly once
+[OK] recomputed length = 240.4889  (reported = 240.4900, diff = 0.001091)
+[INFO] brute-force optimal = 240.4889, GA gap = 0.00%
+[OK] GA found the EXACT global optimum

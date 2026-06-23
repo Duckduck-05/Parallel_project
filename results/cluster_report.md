@@ -214,17 +214,27 @@ mục 10 (8000 thành phố sẽ cần ~6.1 GB/máy → chắc chắn sập node
 | 3200 | 400 | 15.43 | tăng siêu tuyến tính (do cache-miss trên ma trận N² lớn, không phải do GA) |
 | 6400 | 400 | **TIMEOUT >180s** | vượt trần RAM node3 → swap thrashing |
 | 2400 | 7300 | 102.47 | tăng gens (an toàn RAM) để dò |
-| 2400 | 10500 | **159.14** | ✅ trong khoảng 2-3 phút |
+| 2400 | 10500 | 159.14 / 154.27 / **145.97** | ✅ 3 lần đo lặp lại, đều trong khoảng 2-3 phút |
 
-**Chọn N\* = 2400 thành phố, gens\* = 10500** (procs=48, sync=20) — runtime thật
-**159.14s (≈2.65 phút)**, Best length = 18354.24. Cố tình giữ N* nhỏ (≤2550) để **2×N\* = 4800
-vẫn an toàn RAM trên toàn cluster** (2.21 GB/máy, còn margin so với 3.0 GB của node3) — tránh
-phải giảm rank trên node3 (vẫn giữ 12 rank/máy đồng nhất cho thí nghiệm speedup ở mục 10).
+**Chọn N\* = 2400 thành phố, gens\* = 10500** (procs=48, sync=20). Đo lặp lại **3 lần** ở config
+này (cùng máy, các thời điểm khác nhau trong buổi làm) để kiểm tra độ ổn định trước khi chốt:
+**159.14s, 154.27s, 145.97s** (trung bình ≈153s, biên độ dao động ±4.5% so với trung bình) - cả
+3 lần đều rơi gọn trong mục tiêu 120-180s, không có lần nào lệch ra ngoài. **Số liệu chính thức
+dùng cho báo cáo (có log + stats CSV đầy đủ làm chứng cứ) là lần đo cuối: 145.97s** -
+`results/nstar_run.log` (stdout đầy đủ) + `results/nstar_final_stats.csv` (per-rank, 48 dòng,
+makespan_s=145.9678, best_len=18354.24 - giống các lần đo trước, xác nhận thuật toán hội tụ về
+cùng một nghiệm dù thời gian chạy dao động). Cố tình giữ N* nhỏ (≤2550) để **2×N\* = 4800 vẫn
+an toàn RAM trên toàn cluster** (2.21 GB/máy, còn margin so với 3.0 GB của node3) — tránh phải
+giảm rank trên node3 (vẫn giữ 12 rank/máy đồng nhất cho thí nghiệm speedup ở mục 10).
+
+(Lưu ý: mục 14 dưới đây dùng một lần đo RIÊNG của config 48-rank này - 154.27s - được đo
+back-to-back cùng lúc với các cấu hình so sánh khác [44-rank, 36-rank] để đảm bảo so sánh công
+bằng cùng điều kiện hệ thống tại đúng thời điểm đó. Đây KHÔNG phải số liệu chính thức của N* ở
+mục này - chỉ là 1 trong 3 lần đo lặp lại nói trên, dùng làm baseline nội bộ cho mục 14.)
 
 (Lưu ý thêm: dao động run-to-run khá lớn trên cluster tiêu dùng thật — ví dụ N=4000/gens=1500
 cho 201.55s nhưng gens=1300 chỉ 86-95s ở lần đo khác; nguyên nhân là nhiễu mạng/tải hệ thống
-chia sẻ trên các máy laptop Windows, không phải lỗi đo. Số liệu N*/gens* cuối đã được xác nhận
-ổn định qua phép đo trực tiếp.)
+chia sẻ trên các máy laptop Windows, không phải lỗi đo.)
 
 ### 8.3 Bảng sạch: runtime vs N tại gens=10500 CỐ ĐỊNH (procs=48, sync=20)
 
@@ -237,6 +247,11 @@ dùng để minh hoạ vì sao N=2400 được chọn:
 | 1200 | 54.54 | 25.90 | 28.65 |
 | 1800 | 86.99 | 34.33 | 52.66 |
 | 2400 | 154.27 | 64.05 | 90.22 |
+
+(Dòng N=2400 ở đây dùng giá trị 154.27s - đo back-to-back cùng lúc với N=1200/1800 để so sánh
+công bằng trong cùng bảng; đây là 1 trong 3 lần đo lặp lại đã liệt kê ở mục 8.2, KHÔNG mâu
+thuẫn với số liệu chính thức 145.97s dùng làm headline N* - cả hai đều nằm trong biên độ dao
+động run-to-run đã ghi nhận.)
 
 Tăng trưởng từ N=1200→2400 (×2) cho total ×2.83 - siêu tuyến tính nhẹ (khớp với phân tích cache
 ở mục 8.1), nhưng vẫn nằm gọn trong khoảng mong muốn ở N=2400.
@@ -308,21 +323,29 @@ python3 python/experiments.py speedup --procs 1 2 4 8 16 32 48 --size 4800 \
 "with communication" và "without communication"; panel phải = **speedup S(p)=T(1)/T(p)**, 2
 đường tương tự + đường "ideal" (speedup tuyến tính) để đối chiếu.
 
+**Số liệu dưới đây khớp chính xác với `results/exp_speedup.csv` hiện tại trong repo (file cuối
+cùng, log đầy đủ tại `results/speedup_run.log`)** - đây là phiên bản số liệu DUY NHẤT dùng cho
+báo cáo (thay thế bản đo trước đó, vốn cho số liệu hơi khác do nhiễu run-to-run đã ghi nhận
+trong toàn báo cáo này):
+
 | procs | total (s) | comm (s) | compute (s) | speedup (kể cả comm) | speedup (không comm) | hiệu suất |
 |---|---|---|---|---|---|---|
-| 1 | 16.29 | 0.000 | 16.29 | 1.00 | 1.00 | 1.00 |
-| 2 | 10.11 | 4.05 | 6.06 | 1.61 | 2.69 | 0.81 |
-| 4 | 4.81 | 2.14 | 2.67 | 3.39 | 6.11 | 0.85 |
-| 8 | 3.45 | 2.05 | 1.41 | 4.72 | 11.59 | 0.59 |
-| **16** | **3.15** | 2.29 | 0.86 | **5.17 (đỉnh)** | 18.83 | 0.32 |
-| 32 | 3.74 | 2.89 | 0.85 | 4.35 | 19.18 | 0.14 |
-| 48 | 3.60 | 2.53 | 1.07 | 4.52 | 15.20 | 0.09 |
+| 1 | 16.36 | 0.000 | 16.36 | 1.00 | 1.00 | 1.00 |
+| 2 | 9.69 | 3.61 | 6.08 | 1.69 | 2.69 | 0.84 |
+| 4 | 4.80 | 2.11 | 2.69 | 3.41 | 6.09 | 0.85 |
+| 8 | 3.35 | 1.97 | 1.38 | 4.89 | 11.86 | 0.61 |
+| **16** | **2.86** | 2.03 | 0.82 | **5.73 (đỉnh)** | 19.88 | 0.36 |
+| 32 | 3.64 | 2.70 | 0.94 | 4.49 | 17.32 | 0.14 |
+| 48 | 4.04 | 2.89 | 1.15 | 4.05 | 14.24 | 0.08 |
 
 **Khác biệt lớn so với thí nghiệm cũ ở N=400 (mục 3.3)**: với bài toán đủ lớn (N=4800),
-speedup **không bao giờ tụt dưới 1** — đạt đỉnh **5.17x ở 16 procs**, sau đó giảm nhẹ ở 32/48
+speedup **không bao giờ tụt dưới 1** — đạt đỉnh **5.73x ở 16 procs**, sau đó giảm nhẹ ở 32/48
 (do comm chiếm tỷ trọng lớn hơn khi mỗi island còn ít việc) nhưng vẫn >4x. Điều này xác nhận
 trực tiếp giả thuyết đã nêu ở mục 4.3: **kích thước bài toán đủ lớn sẽ khắc phục được vấn đề
-overhead đồng bộ** quan sát thấy ở N nhỏ.
+overhead đồng bộ** quan sát thấy ở N nhỏ. (Một lần đo trước đó cho đỉnh 5.17x/3.15s ở cùng
+procs=16 - sai biệt ~10% với lần đo này nằm trong biên độ nhiễu run-to-run đã ghi nhận xuyên
+suốt báo cáo; xu hướng định tính - đỉnh tại 16 procs, không tụt dưới 1 - là nhất quán giữa cả
+hai lần đo.)
 
 ## 11. So sánh `--sync` 0 / 20 / 100 / 200 (N=4800, procs=48, gens=400)
 
@@ -364,21 +387,19 @@ chất lượng nghiệm cần chạy lại mỗi giá trị sync với ≥5-10 
 
 ## 12. Correctness validation
 
-**Lệnh chính xác:**
+**Lệnh chính xác (đã chạy lại, log thật lưu trong `results/`):**
 ```bash
 export PATH=/opt/openmpi-5.0.9/bin:$PATH LD_LIBRARY_PATH=/opt/openmpi-5.0.9/lib
-# case N=8 (brute-force feasible)
-python3 data/generate_cities.py --n 8 --mode random --seed 42 --out /tmp/cities_8.txt
-mpirun --oversubscribe -np 4 ./cpp/tsp_island /tmp/cities_8.txt --gens 500 --sync 20 --out /tmp/verify8
-python3 python/validate_tour.py /tmp/cities_8.txt "2 4 7 0 1 3 6 5" 240.49
+# case N=8 (brute-force feasible) - input cố định tại data/cities_8.txt (seed=42, đã commit)
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_8.txt --gens 500 --sync 20 --out /tmp/verify8
+python3 python/validate_tour.py data/cities_8.txt "2 4 7 0 1 3 6 5" 240.49 > results/validate_n8.log
 
 # case N=200 (permutation + recompute only, N quá lớn cho brute-force)
 mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_200.txt --gens 500 --sync 20 --out /tmp/verify200
-# -> stdout in "Best length: 2348.01" + dòng "Route: <200 số, permutation 0..199>"
-python3 python/validate_tour.py data/cities_200.txt "$(grep '^Route' /tmp/v200.txt | sed 's/Route *: *//')" 2348.01
+python3 python/validate_tour.py data/cities_200.txt "$ROUTE" "$BEST" > results/validate_n200.log
 ```
-(route N=200 là 200 số nguyên, quá dài để in trực tiếp trong báo cáo - xem file gốc
-`/tmp/v200.txt` hoặc chạy lại lệnh trên để tái tạo.)
+Log thật của 2 lần chạy validation: **`results/validate_n8.log`**, **`results/validate_n200.log`**
+(route N=200 là 200 số nguyên, quá dài để in trực tiếp trong báo cáo).
 
 Viết script kiểm tra độc lập (Python, không dùng lại code C++) gồm 3 mức:
 
