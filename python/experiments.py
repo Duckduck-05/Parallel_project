@@ -84,6 +84,12 @@ def run(procs, cities, gens, pop, sync, hostfile):
         cmd = ["mpirun", "--oversubscribe", "-np", str(procs)] + solver
     subprocess.run(cmd, cwd=ROOT, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if hostfile:
+        # rank 0 (which writes --stats) is mapped to the FIRST host in the hostfile
+        # (--map-by seq), not necessarily the launcher machine -> fetch it back.
+        rank0_host = _hosts(hostfile)[0]
+        subprocess.run(["scp", "-q", f"{rank0_host}:{stats}", stats],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     rows = list(csv.DictReader(open(stats)))
     os.remove(stats)
     makespan = float(rows[0]["makespan_s"])

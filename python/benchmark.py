@@ -37,13 +37,23 @@ def default_binary():
 
 def run_once(binary, np_count, hostfile, total, gens, cities, sync):
     pop = max(1, total // np_count)        # split the total population evenly across islands
-    cmd = ["mpirun"]
     if hostfile:
-        cmd += ["--hostfile", hostfile]
+        # relative to $HOME/parallel-tsp on each node (absolute launcher paths don't exist remotely)
+        binary = os.path.relpath(binary, ROOT)
+        cities = os.path.relpath(cities, ROOT) if os.path.isabs(cities) else cities
+    solver = [binary, cities, "--gens", str(gens), "--pop", str(pop), "--sync", str(sync)]
+    if hostfile:
+        # Same launcher convention as cluster/run_cluster.sh: pin the OpenMPI build + launch
+        # agent (remote non-interactive PATH won't find it), map-by seq for heterogeneous
+        # nodes, and cd into each rank's OWN $HOME/parallel-tsp (home dirs differ per node/user
+        # so absolute paths from the launcher don't exist remotely).
+        cmd = ["mpirun",
+               "--prtemca", "prte_launch_agent", "/opt/openmpi-5.0.9/bin/prted",
+               "--map-by", "seq", "--bind-to", "none",
+               "--hostfile", hostfile, "-np", str(np_count),
+               "bash", "-c", 'cd "$HOME/parallel-tsp" && exec "$@"', "_"] + solver
     else:
-        cmd += ["--oversubscribe"]
-    cmd += ["-np", str(np_count), binary,
-            cities, "--gens", str(gens), "--pop", str(pop), "--sync", str(sync)]
+        cmd = ["mpirun", "--oversubscribe", "-np", str(np_count)] + solver
     out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True)
     m = TIME_RE.search(out)
     return float(m.group(1))
