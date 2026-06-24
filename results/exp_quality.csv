@@ -1,0 +1,4 @@
+arm,gens,makespan_s,best_len,improve_vs_greedy_pct
+greedy,0,0.0264,2769.53,0.00
+from_scratch,20000,112.2263,3016.30,-8.91
+greedy_seed,1000,4.5619,2594.70,6.31

@@ -15,6 +15,7 @@ cpp/test_local_search
 
 # Live-view stream files and scratch run outputs
 results/stream*.jsonl
+results/*.jsonl.rank*
 results/race*
 results/_*.png
 results/*.rank*.history

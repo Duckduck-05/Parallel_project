@@ -1,9 +1,0 @@
-procs=  1  total=  16.36s  comm= 0.000s  compute=  16.36s
-procs=  2  total=   9.69s  comm= 3.607s  compute=   6.08s
-procs=  4  total=   4.80s  comm= 2.113s  compute=   2.69s
-procs=  8  total=   3.35s  comm= 1.969s  compute=   1.38s
-procs= 16  total=   2.86s  comm= 2.035s  compute=   0.82s
-procs= 32  total=   3.64s  comm= 2.697s  compute=   0.94s
-procs= 48  total=   4.04s  comm= 2.890s  compute=   1.15s
--> /home/duck/project/parallel-tsp/results/exp_speedup.csv
--> /home/duck/project/parallel-tsp/results/exp_speedup.png
