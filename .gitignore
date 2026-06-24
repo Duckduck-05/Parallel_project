@@ -1,5 +1,10 @@
-# Claude
+# Claude / local-only meta and demo files
 .claude
+CLAUDE.md
+agent.md
+demo.bat
+demo_parallel.bat
+.pull-backup-*
 
 # Python
 __pycache__/

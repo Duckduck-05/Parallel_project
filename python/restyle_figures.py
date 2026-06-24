@@ -275,8 +275,8 @@ def fig_route():
     ax.plot(coords[tour[0], 0], coords[tour[0], 1], "s", color=RED, ms=12,
             markeredgewidth=1.2, label="start city", zorder=3)
     ax.set_xlabel("x"); ax.set_ylabel("y")
-    ax.set_title(f"Best TSP route - length = {length:.2f} ({len(tour)} cities)")
-    ax.legend(loc="upper right")
+    ax.set_title(f"TSP tour from the solver: length = {length:.2f} ({len(tour)} cities)")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.10), ncol=1)
     ax.set_aspect("equal", adjustable="box")
     _clean(ax)
     fig.tight_layout()
