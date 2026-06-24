@@ -211,11 +211,37 @@ python3 python/live_view.py run data/cities_100.txt --islands 4 --gens 800 --syn
 # seed the GA with the greedy tour first (curve starts at the greedy line, then drops):
 python3 python/live_view.py run data/cities_100.txt --islands 4 --gens 800 --sync 30 --greedy-init
 
-# live view of a REAL cluster run (two terminals):
-#   window 1 (launcher): mpirun --hostfile cluster/hosts.demo4 -np 4 ./cpp/tsp_island \
-#                        data/cities_100.txt --gens 30000 --sync 200 --live results/stream.jsonl
-#   window 2:            python3 python/live_view.py tail results/stream.jsonl data/cities_100.txt --islands 4
 ```
+
+#### Live view of a real 4-node cluster run
+
+Run this from the launcher node (one rank per machine via `cluster/hosts.demo4`). Because the
+nodes have no shared filesystem, each rank writes its `--live` stream **on its own machine**, so
+after the run we `rsync` the per-rank files (`.rank1`/`.rank2`/`.rank3`) back from node2/3/4 (rank0
+is already local) before replaying them in the viewer:
+
+```bash
+cd ~/parallel-tsp
+export PATH=/opt/openmpi-5.0.9/bin:$PATH LD_LIBRARY_PATH=/opt/openmpi-5.0.9/lib
+export DISPLAY=:0 WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir   # WSLg GUI
+rm -f results/stream.jsonl*
+
+# 1. run the real 4-node cluster job, streaming each rank's best tour live
+bash cluster/run_cluster.sh cluster/hosts.demo4 4 ./cpp/tsp_island \
+    data/cities_1000.txt --gens 4000 --sync 100 --greedy-init --live results/stream.jsonl
+
+# 2. pull the per-rank streams from the other nodes (rank0 is already local)
+rsync -az node2:parallel-tsp/results/stream.jsonl.rank1 results/
+rsync -az node3:parallel-tsp/results/stream.jsonl.rank2 results/
+rsync -az node4:parallel-tsp/results/stream.jsonl.rank3 results/
+
+# 3. replay all four islands in the viewer (background; log to /tmp/viewer.log)
+nohup python3 python/live_view.py tail results/stream.jsonl data/cities_1000.txt \
+    --islands 4 --sync 100 --step 40 --interval 50 > /tmp/viewer.log 2>&1 &
+```
+
+For the real-time variants (rsync in a background loop while the job runs, the 3-node fallback
+when node3 is offline, and cleanup commands) see `cluster/DEMO_COMMANDS.md`.
 
 ### Static figures from a finished run
 
