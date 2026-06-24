@@ -306,6 +306,8 @@ def cmd_run(args):
            "--gens", str(args.gens), "--pop", str(args.pop),
            "--sync", str(args.sync), "--migrants", str(args.migrants),
            "--twoopt", str(args.twoopt), "--seed", str(args.seed), "--live", stream]
+    if args.greedy_init:
+        cmd.append("--greedy-init")
     print("Launching:", " ".join(cmd))
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     mode = f"{args.islands} islands, " + (
@@ -406,6 +408,7 @@ def main():
     r.add_argument("--interval", type=int, default=60, help="ms between animation frames")
     r.add_argument("--step", type=int, default=5, help="generations advanced per frame (lower = slower replay)")
     r.add_argument("--intro", type=int, default=25, help="frames to hold on the greedy baseline before the GA starts (0 = skip)")
+    r.add_argument("--greedy-init", action="store_true", help="seed the GA with the greedy tour (mode 1); default = random/from scratch")
     r.add_argument("--binary", default=None, help="path to the C++ solver (default: cpp/tsp_island)")
     r.add_argument("--save", default=None, help="save a video (mp4/gif) instead of showing")
     r.set_defaults(func=cmd_run)

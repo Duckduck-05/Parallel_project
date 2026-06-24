@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
     int gens = 500, pop_size = 200, sync = 20, twoopt = 0, patience = 0, migrants = 3;
     unsigned seed = 42;
     bool auto_balance = false;
+    bool greedy_init = false;      // --greedy-init: seed the GA with the greedy tour (vs random)
     std::string out_file, stats_file, live_file;
     for (int i = 2; i < argc; i++) {
         std::string a = argv[i];
@@ -98,6 +99,7 @@ int main(int argc, char** argv) {
         else if (a == "--stats" && i + 1 < argc) stats_file = argv[++i];
         else if (a == "--live" && i + 1 < argc) live_file = argv[++i];
         else if (a == "--auto-balance") auto_balance = true;
+        else if (a == "--greedy-init") greedy_init = true;
     }
 
     auto coords = read_cities(path);
@@ -147,11 +149,27 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Compute the greedy (nearest-neighbor) tour once if it is needed - either to SEED the GA
+    // (--greedy-init) or as the live baseline reference line. Identical on every rank.
+    Tour greedy;
+    double greedy_len = 0.0;
+    if (greedy_init || !live_file.empty()) {
+        greedy = nearest_neighbor_tour(D, n);
+        greedy_len = tour_length(greedy, D, n);
+    }
+
     std::vector<Tour> pop(pop_size);
     std::vector<double> len(pop_size);
     for (int i = 0; i < pop_size; i++) {
         pop[i] = random_tour(n, rng);
         len[i] = tour_length(pop[i], D, n);
+    }
+    // --greedy-init: seed ONE individual per island with the greedy tour, so the GA starts from
+    // a decent solution ("init greedy then GA") instead of pure random. Just one seed keeps the
+    // rest of the population diverse. Default off = GA from scratch (preserves old benchmarks).
+    if (greedy_init) {
+        pop[0] = greedy;
+        len[0] = greedy_len;
     }
     std::vector<double> history;
     history.reserve(gens);
@@ -167,13 +185,11 @@ int main(int argc, char** argv) {
     std::ofstream live_f;
     if (!live_file.empty()) {
         live_f.open(live_file + ".rank" + std::to_string(rank));
-        // First line = the GREEDY (nearest-neighbor) baseline tour, so the viewer can show it
-        // first and draw it as a reference the GA then beats. Deterministic + identical on every
-        // rank (same coords), gen 0, tagged "baseline".
-        if (live_f.is_open()) {
-            Tour greedy = nearest_neighbor_tour(D, n);
-            write_live_line(live_f, 0, tour_length(greedy, D, n), greedy, false, true);
-        }
+        // First line = the GREEDY (nearest-neighbor) baseline tour (computed above), so the
+        // viewer can show it first and draw it as a reference the GA then beats. Gen 0,
+        // tagged "baseline".
+        if (live_f.is_open())
+            write_live_line(live_f, 0, greedy_len, greedy, false, true);
     }
 
     std::vector<int> bcast_buf(n);
@@ -298,7 +314,8 @@ int main(int argc, char** argv) {
         std::string pop_label = auto_balance ? "auto (see table below)" : std::to_string(pop_size);
         bool stopped_early = gens_run < gens;
         std::cout << std::fixed;
-        std::cout << "Islands (procs)  : " << size << "  |  mode: " << mode << "\n";
+        std::cout << "Islands (procs)  : " << size << "  |  mode: " << mode
+                  << "  |  init: " << (greedy_init ? "greedy seed" : "random (from scratch)") << "\n";
         std::cout << "Cities           : " << n << ", generations: " << gens_run
                   << (stopped_early ? " (converged early)" : "")
                   << ", population/island: " << pop_label << "\n";
