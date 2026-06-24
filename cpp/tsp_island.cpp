@@ -53,13 +53,13 @@ static void write_live_line(std::ofstream& f, int gen, double best_len,
 // unvisited city. The classic TSP baseline that the GA is meant to beat. Emitted only as
 // a reference "baseline" line for the live viewer - it does NOT seed the GA population, so
 // it does not affect the search or the benchmark numbers.
-static Tour nearest_neighbor_tour(const std::vector<double>& D, int n) {
+static Tour nearest_neighbor_tour(const std::vector<double>& D, int n, int start = 0) {
     Tour t;
     t.reserve(n);
     std::vector<char> used(n, 0);
-    int cur = 0;
-    used[0] = 1;
-    t.push_back(0);
+    int cur = start;
+    used[start] = 1;
+    t.push_back(start);
     for (int step = 1; step < n; step++) {
         int best = -1;
         double bd = 1e30;
@@ -149,13 +149,27 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Compute the greedy (nearest-neighbor) tour once if it is needed - either to SEED the GA
-    // (--greedy-init) or as the live baseline reference line. Identical on every rank.
+    // PARALLEL GREEDY: each island builds a nearest-neighbor tour from a DIFFERENT random
+    // start city (its own seed), then Allreduce(MINLOC) picks the best of all `size` attempts
+    // and its owner Bcasts it - so every island starts from the best greedy across the cluster.
+    // This is a genuine parallel (exploratory) step, but it runs BEFORE the timer / barrier, so
+    // it does not affect the benchmark numbers. With size == 1 it is just one local NN tour.
+    // Computed only when needed: to SEED the GA (--greedy-init) and/or as the live baseline.
     Tour greedy;
     double greedy_len = 0.0;
     if (greedy_init || !live_file.empty()) {
-        greedy = nearest_neighbor_tour(D, n);
+        int start = (int)(rng() % n);                       // distinct per island (distinct seed)
+        greedy = nearest_neighbor_tour(D, n, start);
         greedy_len = tour_length(greedy, D, n);
+        if (size > 1) {
+            struct { double val; int rank; } in{greedy_len, rank}, out;
+            MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
+            std::vector<int> gbuf(n);
+            if (rank == out.rank) gbuf = greedy;
+            MPI_Bcast(gbuf.data(), n, MPI_INT, out.rank, MPI_COMM_WORLD);
+            greedy = gbuf;
+            greedy_len = out.val;                           // best greedy length, identical everywhere
+        }
     }
 
     std::vector<Tour> pop(pop_size);
