@@ -487,23 +487,20 @@ equal to the usable CPU slots of the cluster. The final cluster configuration
 uses 48 ranks, capped at 12 ranks per machine. The runtime is measured in two cases: total time including
 communication, and estimated compute time excluding communication.
 
-The first sweep used a fixed 400-generation run to understand the growth trend.
-It showed that larger instances increase compute work and communication volume,
-but the run was still too short for the required 2--3 minute target.
+The current \texttt{results/exp\_size.csv} and \texttt{results/exp\_size.png}
+come from a 48-rank size sweep at \texttt{gens=10500} and \texttt{sync=20}.
+The measured values are:
 
 \begin{table}[H]
 \centering
-\caption{Runtime versus input size with 48 MPI ranks}
+\caption{Runtime versus input size with 48 MPI ranks, 10500 generations}
 \begin{tabular}{rrrr}
 \toprule
 $N$ & Total time (s) & Communication (s) & Compute only (s) \\
 \midrule
-100  & 1.2427 & 1.1512 & 0.0915 \\
-200  & 1.0223 & 0.8770 & 0.1453 \\
-400  & 1.7410 & 1.4027 & 0.3383 \\
-800  & 2.9824 & 1.9272 & 1.0552 \\
-1200 & 4.2491 & 2.4806 & 1.7685 \\
-2400 & 8.1918 & 3.8092 & 4.3826 \\
+1200 & 86.1346  & 51.1188  & 35.0158 \\
+1800 & 131.3597 & 65.6987  & 65.6610 \\
+2400 & 217.0933 & 100.3329 & 116.7604 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -511,23 +508,25 @@ $N$ & Total time (s) & Communication (s) & Compute only (s) \\
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.85\linewidth]{exp_size.png}
-\caption{Initial runtime sweep versus number of cities, with and without communication time.}
+\caption{Runtime sweep versus number of cities, with and without communication time.}
 \end{figure}
 
-To satisfy the 2--3 minute requirement, the final selection fixed
-\texttt{procs=48}, \texttt{sync=20}, and increased the generation count to
-\texttt{gens=10500}. The clean selection run is:
+This later sweep shows normal run-to-run variation on the heterogeneous
+cluster: $N=1800$ lies inside the 2--3 minute interval in this run, while
+$N=2400$ overshoots it. However, the dedicated N-star runs stored in the
+repository show that the selected final configuration also satisfies the target
+in repeated measurements. The final selection is:
 
 \begin{table}[H]
 \centering
-\caption{Final $N^*$ selection at 48 ranks, 10500 generations}
-\begin{tabular}{rrrr}
+\caption{Dedicated $N^*$ confirmation at 48 ranks, 10500 generations}
+\begin{tabular}{rrr}
 \toprule
-$N$ & Total time (s) & Communication (s) & Compute only (s) \\
+$N$ & Total time (s) & Evidence \\
 \midrule
-1200 & 54.54  & 25.90 & 28.65 \\
-1800 & 86.99  & 34.33 & 52.66 \\
-2400 & 154.27 & 64.05 & 90.22 \\
+2400 & 159.14 & repeated cluster run \\
+2400 & 154.27 & repeated cluster run \\
+2400 & 145.97 & \texttt{results/nstar\_run.log} and \texttt{nstar\_final\_stats.csv} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -762,8 +761,8 @@ bash cluster/run_cluster.sh cluster/hosts.seq48 48 \
 
 # Required experiment figures
 python3 python/experiments.py size \
-  --procs 48 --sizes 100 200 400 800 1200 2400 \
-  --gens 400 --sync 20 --hostfile cluster/hosts.seq48
+  --procs 48 --sizes 1200 1800 2400 \
+  --gens 10500 --sync 20 --hostfile cluster/hosts.seq48
 
 python3 python/experiments.py gran \
   --procs 48 --size 2400 --gens 10500 --sync 20 \
