@@ -5,13 +5,15 @@ This is a PLOTTING / orchestration tool only. The solver is the C++ binary
 cpp/tsp_island; this script launches it (locally with mpirun, or on the cluster through
 cluster/run_cluster.sh), reads the per-process --stats CSV it writes, and plots.
 
-Three experiments:
+Four experiments:
   size    : runtime vs. problem size N (number of cities), WITH and WITHOUT communication
             time -> pick N so the program runs ~2-3 minutes.
   gran    : one run with N cities on P processes; stacked compute+comm+idle bars per
             process (load-balance / granularity check; warns if idle skew > 25%).
   speedup : fixed total work, varying processes 1,2,4,8,...; runtime (with/without comm)
             + speedup S(p)=T(1)/T(p) + efficiency.
+  quality : solution quality - parallel greedy vs GA-from-scratch (20x gens) vs GA greedy-seed;
+            convergence curves + final-length bar + % improvement over greedy.
 
 Run on one machine (oversubscribe):
   python3 experiments.py size    --procs 4 --sizes 50 100 200 400
@@ -97,6 +99,104 @@ def run(procs, cities, gens, pop, sync, hostfile):
                  float(r["total_s"])) for r in rows]
     comm_avg = sum(r[2] for r in per_rank) / len(per_rank)
     return makespan, comm_avg, per_rank
+
+
+def run_quality(procs, cities, gens, pop, sync, hostfile, greedy_init):
+    """Run once with --out + --stats. Returns (makespan, best_len, history[np.array]).
+    best_len = the global best tour length (solution quality); history = global best per
+    generation (the .history file rank 0 writes). greedy_init toggles --greedy-init."""
+    if hostfile:
+        sync_data(cities, hostfile)
+    stats = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
+    outpref = tempfile.NamedTemporaryFile(suffix=".out", delete=False).name
+    solver = [BIN, cities, "--gens", str(gens), "--pop", str(pop),
+              "--sync", str(sync), "--stats", stats, "--out", outpref]
+    if greedy_init:
+        solver.append("--greedy-init")
+    if hostfile:
+        cmd = ["bash", os.path.join("cluster", "run_cluster.sh"), hostfile, str(procs)] + solver
+    else:
+        cmd = ["mpirun", "--oversubscribe", "-np", str(procs)] + solver
+    subprocess.run(cmd, cwd=ROOT, check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    hist_path = outpref + ".history"
+    if hostfile:
+        # rank 0 (writes --out/--stats) is the FIRST host in the hostfile -> fetch both back
+        rank0_host = _hosts(hostfile)[0]
+        for p in (stats, hist_path):
+            subprocess.run(["scp", "-q", f"{rank0_host}:{p}", p],
+                           check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    rows = list(csv.DictReader(open(stats)))
+    makespan = float(rows[0]["makespan_s"])
+    best_len = min(float(r["best_len"]) for r in rows)
+    hist = np.array([])
+    if gens > 0 and os.path.exists(hist_path) and os.path.getsize(hist_path) > 0:
+        hist = np.atleast_1d(np.loadtxt(hist_path))
+    import glob as _glob
+    for p in [stats, outpref, hist_path] + _glob.glob(outpref + ".rank*.history"):
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+    return makespan, best_len, hist
+
+
+# ---------------- Experiment 4: solution quality (greedy vs GA arms) ----------------
+def exp_quality(a):
+    """Compare solution QUALITY of three arms at the same N / procs:
+      1. parallel greedy   - best of P nearest-neighbor starts (no GA), the baseline,
+      2. GA from scratch    - random init, run for scratch_mult x the normal generations,
+      3. GA greedy-seed     - seeded with the parallel greedy, normal generations.
+    Plots the convergence curves (vs generation) + a final-length bar, and writes a CSV with
+    final length, runtime and % improvement over greedy. Showcases that the GA beats greedy and
+    that seeding reaches a good solution in far fewer generations."""
+    os.makedirs(RESULTS, exist_ok=True)
+    cities = make_cities(a.size)
+    scratch_gens = a.gens * a.scratch_mult
+    print(f"N={a.size}, procs={a.procs}, normal gens={a.gens}, "
+          f"scratch gens={scratch_gens} (x{a.scratch_mult})")
+
+    g_mk, g_len, _ = run_quality(a.procs, cities, 0, a.pop, a.sync, a.hostfile, True)
+    print(f"[greedy]        len={g_len:8.2f}  (parallel best of {a.procs} NN starts)")
+    sc_mk, sc_len, sc_hist = run_quality(a.procs, cities, scratch_gens, a.pop, a.sync, a.hostfile, False)
+    print(f"[from-scratch]  len={sc_len:8.2f}  time={sc_mk:7.2f}s  gens={scratch_gens}")
+    se_mk, se_len, se_hist = run_quality(a.procs, cities, a.gens, a.pop, a.sync, a.hostfile, True)
+    print(f"[greedy-seed]   len={se_len:8.2f}  time={se_mk:7.2f}s  gens={a.gens}")
+
+    def imp(x):
+        return (g_len - x) / g_len * 100 if g_len else 0.0
+    csvp = os.path.join(RESULTS, "exp_quality.csv")
+    with open(csvp, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["arm", "gens", "makespan_s", "best_len", "improve_vs_greedy_pct"])
+        w.writerow(["greedy", 0, f"{g_mk:.4f}", f"{g_len:.2f}", "0.00"])
+        w.writerow(["from_scratch", scratch_gens, f"{sc_mk:.4f}", f"{sc_len:.2f}", f"{imp(sc_len):.2f}"])
+        w.writerow(["greedy_seed", a.gens, f"{se_mk:.4f}", f"{se_len:.2f}", f"{imp(se_len):.2f}"])
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+    if len(sc_hist):
+        ax1.plot(range(1, len(sc_hist) + 1), sc_hist, "-", color="#DD8452",
+                 label=f"GA from scratch ({scratch_gens} gens)")
+    if len(se_hist):
+        ax1.plot(range(1, len(se_hist) + 1), se_hist, "-", color="#4C72B0",
+                 label=f"GA greedy-seed ({a.gens} gens)")
+    ax1.axhline(g_len, ls="--", color="#555", label=f"parallel greedy = {g_len:.0f}")
+    ax1.set_xscale("log")
+    ax1.set_xlabel("Generation (log scale)"); ax1.set_ylabel("Best tour length")
+    ax1.set_title(f"Convergence quality (N={a.size}, procs={a.procs})")
+    ax1.legend(); ax1.grid(alpha=0.3)
+
+    arms = ["greedy", "from\nscratch", "greedy\nseed"]
+    vals = [g_len, sc_len, se_len]
+    cols = ["#555555", "#DD8452", "#4C72B0"]
+    ax2.bar(arms, vals, color=cols)
+    for i, v in enumerate(vals):
+        ax2.text(i, v, f"{v:.0f}", ha="center", va="bottom", fontsize=9)
+    ax2.set_ylabel("Final best tour length"); ax2.set_title("Final solution quality (lower = better)")
+    ax2.grid(axis="y", alpha=0.3)
+    plt.tight_layout()
+    png = os.path.join(RESULTS, "exp_quality.png"); plt.savefig(png, dpi=130)
+    print(f"-> {csvp}\n-> {png}")
 
 
 # ---------------- Experiment 1: runtime vs. size N ----------------
@@ -191,7 +291,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("size", "gran", "speedup"):
+    for name in ("size", "gran", "speedup", "quality"):
         s = sub.add_parser(name)
         s.add_argument("--gens", type=int, default=400)
         s.add_argument("--pop", type=int, default=200)
@@ -203,12 +303,17 @@ def main():
         elif name == "gran":
             s.add_argument("--procs", type=int, default=4)
             s.add_argument("--size", type=int, default=200)
+        elif name == "quality":
+            s.add_argument("--procs", type=int, default=4)
+            s.add_argument("--size", type=int, default=200)
+            s.add_argument("--scratch-mult", type=int, default=20,
+                           help="GA-from-scratch runs this many x --gens (default 20)")
         else:  # speedup
             s.add_argument("--procs", type=int, nargs="+", default=[1, 2, 4, 8])
             s.add_argument("--size", type=int, default=200)
             s.add_argument("--total", type=int, default=480, help="total population (split across islands)")
     a = ap.parse_args()
-    {"size": exp_size, "gran": exp_gran, "speedup": exp_speedup}[a.cmd](a)
+    {"size": exp_size, "gran": exp_gran, "speedup": exp_speedup, "quality": exp_quality}[a.cmd](a)
 
 
 if __name__ == "__main__":
