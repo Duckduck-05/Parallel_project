@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Giải thích thuật toán &amp; codebase — Parallel TSP (Island-model GA + MPI)</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --text: #dfe3ee; --muted: #8b93a7;
+    --accent: #5ec2ff; --accent2: #ffb454; --good: #6fd17a; --bad: #ff7a7a;
+    --code-bg: #11141c; --border: #2a2f3d;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+         line-height: 1.65; margin: 0; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 40px 24px 100px; }
+  h1 { font-size: 28px; color: #fff; border-bottom: 2px solid var(--accent); padding-bottom: 14px; }
+  h2 { font-size: 21px; color: var(--accent); margin-top: 56px; border-left: 4px solid var(--accent);
+       padding-left: 12px; }
+  h3 { font-size: 17px; color: var(--accent2); margin-top: 32px; }
+  p, li { font-size: 15.5px; }
+  code { background: var(--code-bg); color: #f0e68c; padding: 2px 6px; border-radius: 4px;
+         font-family: "Cascadia Code", Consolas, monospace; font-size: 13.5px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;
+        overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  pre code { background: none; padding: 0; color: #e6e6e6; }
+  .file { color: var(--accent); font-weight: 600; }
+  .box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+         padding: 18px 20px; margin: 18px 0; }
+  .box.tip { border-left: 4px solid var(--good); }
+  .box.warn { border-left: 4px solid var(--bad); }
+  .box.note { border-left: 4px solid var(--accent2); }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  th { background: #1d2230; color: var(--accent); }
+  tr:nth-child(even) { background: #141823; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 24px; }
+  .toc a { color: var(--text); text-decoration: none; display: block; padding: 4px 0; }
+  .toc a:hover { color: var(--accent); }
+  .tag { display: inline-block; background: #21283a; color: var(--accent); border-radius: 5px;
+         padding: 1px 8px; font-size: 12px; margin-left: 6px; }
+  .step { display: flex; gap: 14px; margin: 14px 0; align-items: flex-start; }
+  .step .num { background: var(--accent); color: #06141f; font-weight: 700; border-radius: 50%;
+               width: 28px; height: 28px; min-width: 28px; display: flex; align-items: center;
+               justify-content: center; font-size: 14px; }
+  .diagram { font-family: monospace; background: var(--code-bg); border: 1px solid var(--border);
+             border-radius: 8px; padding: 16px; white-space: pre; overflow-x: auto; font-size: 13px;
+             color: #cfd6e6; }
+  .island { display: inline-block; border: 2px solid var(--accent); border-radius: 8px; padding: 8px 14px;
+            margin: 4px; background: #141a26; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 60px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Parallel TSP — Island-model Genetic Algorithm + MPI<br><span style="font-size:16px;color:var(--muted);font-weight:normal;">Giải thích thuật toán và codebase cho người chưa quen</span></h1>
+
+<div class="toc">
+  <b>Mục lục</b>
+  <a href="#bigpicture">1. Bài toán là gì, giải pháp tổng quát ra sao</a>
+  <a href="#files">2. Codebase nằm ở đâu — file nào làm gì</a>
+  <a href="#ga">3. Thuật toán di truyền (GA) tuần tự — <span class="file">ga_core.hpp</span></a>
+  <a href="#localsearch">4. Tinh chỉnh lời giải (2-opt / Or-opt) — <span class="file">local_search.hpp</span></a>
+  <a href="#island">5. Mô hình Island + song song hóa MPI — <span class="file">tsp_island.cpp</span></a>
+  <a href="#migration">6. Cơ chế "di cư" (migration) — phần khó nhất, đọc kỹ</a>
+  <a href="#convergence">7. Dừng sớm khi hội tụ (convergence stop)</a>
+  <a href="#run">8. Cách chạy thử trên máy bạn</a>
+  <a href="#cluster">9. Chạy thật trên cụm nhiều máy (MPI cluster)</a>
+  <a href="#python">10. Vai trò của code Python (chỉ để xem, không phải thuật toán)</a>
+  <a href="#glossary">11. Từ điển thuật ngữ nhanh</a>
+</div>
+
+<h2 id="bigpicture">1. Bài toán là gì, giải pháp tổng quát ra sao</h2>
+<p><b>TSP (Travelling Salesman Problem)</b>: cho N thành phố với toạ độ (x, y), tìm 1 chu trình
+(đi qua mỗi thành phố đúng 1 lần rồi về điểm xuất phát) có <b>tổng độ dài ngắn nhất</b>. Đây là
+bài toán NP-hard — không có cách giải nhanh chính xác 100% khi N lớn, nên phải dùng
+<b>thuật toán xấp xỉ (heuristic)</b>.</p>
+
+<p>Giải pháp của project này: <b>Genetic Algorithm (GA)</b> — mô phỏng tiến hoá tự nhiên
+(quần thể lời giải, chọn lọc, lai ghép, đột biến qua nhiều thế hệ) để dần tìm ra tour ngắn hơn.
+Để giải nhanh hơn và tận dụng nhiều máy, project chạy <b>nhiều GA độc lập song song</b>
+(gọi là <b>"islands" - các đảo</b>), mỗi đảo trên 1 lõi CPU/1 máy, định kỳ <b>chia sẻ lời giải
+tốt nhất</b> giữa các đảo qua <b>MPI</b> (Message Passing Interface — chuẩn giao tiếp giữa các
+process, có thể trên nhiều máy vật lý khác nhau qua mạng LAN).</p>
+
+<div class="box tip">
+<b>Hình dung nhanh:</b> giống như giao bài toán cho 4 nhóm sinh viên làm độc lập, nhưng sau mỗi
+20 phút (chu kỳ "sync"), nhóm có lời giải tốt nhất chia sẻ 1 phần ý tưởng cho 3 nhóm còn lại, rồi
+cả 4 nhóm tiếp tục làm. Lời giải cuối cùng = tốt nhất trong tất cả các nhóm.
+</div>
+
+<h2 id="files">2. Codebase nằm ở đâu — file nào làm gì</h2>
+<p>Toàn bộ thuật toán + song song hoá nằm ở <b>C++</b> (thư mục <code>cpp/</code>). Python chỉ
+dùng để <b>vẽ hình / xem demo trực tiếp</b>, không chứa thuật toán nào.</p>
+
+<table>
+<tr><th>File</th><th>Vai trò</th></tr>
+<tr><td class="file">cpp/ga_core.hpp</td><td>Các phép toán GA cơ bản: tạo tour ngẫu nhiên, tournament selection,
+order crossover (lai ghép), mutation (đột biến), 1 thế hệ tiến hoá. <b>Đây là "trái tim" thuật toán.</b></td></tr>
+<tr><td class="file">cpp/local_search.hpp</td><td>2-opt và Or-opt — 2 thuật toán tinh chỉnh cục bộ giúp tour
+tốt hơn nhanh (biến GA thành "Memetic Algorithm").</td></tr>
+<tr><td class="file">cpp/tsp_island.cpp</td><td><b>File chính của cả project.</b> Vòng lặp tiến hoá + toàn bộ
+logic MPI (chia sẻ kết quả giữa các đảo, đo thời gian, ghi log/kết quả ra file).</td></tr>
+<tr><td class="file">cpp/tsp_sequential.cpp</td><td>Bản 1 process duy nhất (không MPI) — dùng làm baseline T(1)
+để tính speedup khi so với bản chạy nhiều process.</td></tr>
+<tr><td class="file">cpp/test_ga_core.cpp<br>cpp/test_local_search.cpp</td><td>Unit test (không cần MPI) — kiểm
+tra các hàm trong ga_core.hpp / local_search.hpp đúng logic.</td></tr>
+<tr><td class="file">python/*.py</td><td><b>Chỉ vẽ hình/demo trực tiếp</b>, gọi binary C++ rồi đọc file kết
+quả để vẽ — xem mục 10.</td></tr>
+<tr><td class="file">data/cities_*.txt</td><td>File toạ độ thành phố (mỗi dòng "x y"), nhiều cỡ N khác nhau
+để test/benchmark.</td></tr>
+</table>
+
+<h2 id="ga">3. Thuật toán di truyền (GA) tuần tự — <span class="file">ga_core.hpp</span></h2>
+<p>Một "thế hệ" (generation) của GA gồm các bước sau, lặp đi lặp lại hàng nghìn lần:</p>
+
+<div class="step"><div class="num">1</div><div>
+<b>Quần thể (population)</b> = danh sách nhiều tour (mỗi tour là 1 cách hoán vị thứ tự thành
+phố). Mỗi tour có <b>độ dài (len)</b> = tổng khoảng cách Euclid giữa các thành phố liên tiếp
+(hàm <code>tour_length</code>).</div></div>
+
+<div class="step"><div class="num">2</div><div>
+<b>Chọn lọc (Tournament selection)</b> — hàm <code>tournament_select</code>: chọn ngẫu nhiên
+<code>k=5</code> tour trong quần thể, lấy tour <b>ngắn nhất trong nhóm 5 đó</b> làm "cha/mẹ".
+Lặp lại để có 2 "cha mẹ" cho mỗi lần lai ghép. Cách này ưu tiên tour tốt nhưng vẫn giữ ngẫu
+nhiên (không luôn chọn tour tốt nhất tuyệt đối → tránh hội tụ quá sớm).</div></div>
+
+<div class="step"><div class="num">3</div><div>
+<b>Lai ghép (Order Crossover - OX)</b> — hàm <code>order_crossover</code>: chọn 1 đoạn ngẫu
+nhiên <code>[a, b]</code> trong tour cha P1, giữ nguyên đoạn đó cho con; các vị trí còn lại
+điền theo <b>thứ tự xuất hiện trong P2</b> (bỏ qua thành phố đã có trong đoạn giữ lại). Kết quả:
+con vẫn là 1 hoán vị hợp lệ (không trùng/thiếu thành phố), kết hợp đặc điểm của cả 2 cha mẹ.</div></div>
+
+<div class="diagram">Ví dụ OX với 8 thành phố, đoạn giữ lại là vị trí [2,4]:
+
+P1 (cha)  : 0 1 [2 3 4] 5 6 7      &lt;- giữ nguyên đoạn [2,3,4]
+P2 (mẹ)   : 4 7 6 2 0 5 1 3        &lt;- lấy phần còn lại THEO THỨ TỰ này
+Con       : 7 6 [2 3 4] 0 5 1      &lt;- 7,6 (từ P2, bỏ 4 vì đã có) rồi [2,3,4] rồi 0,5,1 (từ P2)
+</div>
+
+<div class="step"><div class="num">4</div><div>
+<b>Đột biến (Mutation)</b> — hàm <code>mutate</code>, tỉ lệ <code>rate=0.3</code>: với xác suất
+0.3, hoán đổi 2 thành phố ngẫu nhiên; với xác suất 0.3 (độc lập), đảo ngược 1 đoạn ngẫu nhiên
+(segment reverse — về bản chất là 1 bước 2-opt ngẫu nhiên). Giúp quần thể không bị "đồng nhất
+hoá" quá nhanh, vẫn còn khả năng khám phá vùng lời giải mới.</div></div>
+
+<div class="step"><div class="num">5</div><div>
+<b>Elitism = 1</b>: tour tốt nhất hiện tại luôn được giữ lại nguyên vẹn sang thế hệ sau (không
+bị lai ghép/đột biến mất đi) — đảm bảo chất lượng không bao giờ giảm qua các thế hệ.</div></div>
+
+<p>Toàn bộ 5 bước trên = hàm <code>evolve_one_gen()</code> trong <code>ga_core.hpp</code>, được
+gọi 1 lần mỗi thế hệ trong vòng lặp chính ở <code>tsp_island.cpp</code>.</p>
+
+<h2 id="localsearch">4. Tinh chỉnh lời giải — <span class="file">local_search.hpp</span></h2>
+<p>GA đơn thuần hội tụ chậm. Project bổ sung 2 thuật toán "tinh chỉnh cục bộ" (local search) để
+tour tốt hơn <i>nhanh hơn</i> — biến GA thành <b>Memetic Algorithm</b> (GA + local search):</p>
+<ul>
+<li><b>2-opt</b> (<code>two_opt_once</code>): xét 2 cạnh trong tour, nếu "tháo ra rồi nối ngược
+lại" (đảo ngược 1 đoạn) cho tổng độ dài ngắn hơn thì áp dụng. Lặp tới khi không cải thiện được
+nữa.</li>
+<li><b>Or-opt</b> (<code>or_opt_once</code>): lấy 1 đoạn ngắn liên tiếp (mặc định 2 thành phố),
+thử <b>di chuyển đoạn đó sang vị trí khác</b> trong tour (không đảo ngược) — bổ trợ cho 2-opt
+(2-opt không xử lý tốt kiểu lỗi "1 thành phố/đoạn ngắn bị lạc chỗ").</li>
+</ul>
+<p>Hàm <code>polish()</code> chạy 2-opt rồi Or-opt liên tiếp. Trong <code>tsp_island.cpp</code>,
+việc polish chỉ áp dụng cho <b>cá thể tốt nhất</b> mỗi <code>--twoopt N</code> thế hệ (tuỳ chọn,
+mặc định tắt) — vì 2-opt khá tốn (mỗi lần chạy là O(N²)), không áp dụng cho cả quần thể.</p>
+
+<h2 id="island">5. Mô hình Island + song song hoá MPI — <span class="file">tsp_island.cpp</span></h2>
+<p>Đây là <b>điểm khác biệt chính của "Parallel TSP" so với 1 GA tuần tự bình thường</b>: thay vì
+1 quần thể lớn chạy trên 1 lõi CPU, ta chạy <b>nhiều quần thể nhỏ độc lập</b> (gọi là
+<b>islands - các đảo</b>) trên nhiều lõi/máy <b>cùng lúc</b>, mỗi đảo = 1 <b>MPI process (rank)</b>.</p>
+
+<div class="diagram">  rank 0 (island 0)     rank 1 (island 1)     rank 2 (island 2)     rank 3 (island 3)
+  quần thể 200 tour     quần thể 200 tour     quần thể 200 tour     quần thể 200 tour
+  seed = 42 + 0*1000    seed = 42 + 1*1000    seed = 42 + 2*1000    seed = 42 + 3*1000
+       |                     |                     |                     |
+       +-------- mỗi máy/lõi tự evolve_one_gen() ĐỘC LẬP, không chờ nhau --------+
+       |                     |                     |                     |
+       +----- mỗi N thế hệ ("--sync N"): TOÀN BỘ 4 đảo DỪNG LẠI 1 nhịp để -------+
+                    chia sẻ lời giải tốt nhất (xem mục 6) rồi tiếp tục
+</div>
+
+<p>Mỗi đảo có <b>seed riêng</b> (<code>seed + rank*1000</code>) → xuất phát từ quần thể ngẫu
+nhiên khác nhau → <b>khám phá các vùng khác nhau của không gian lời giải</b> cùng lúc. Đây
+chính là lý do "song song" ở đây không chỉ là "chạy nhanh hơn" mà còn là
+<b>"tìm kiếm đa hướng song song"</b> — nhiều ý tưởng khác nhau được thử cùng lúc, không phải
+chia nhỏ 1 bài toán ra làm.</p>
+
+<div class="box note">
+<b>MPI là gì (cho người mới)?</b> MPI (Message Passing Interface) là 1 chuẩn để nhiều
+process (có thể trên nhiều máy vật lý khác nhau, nối qua mạng LAN) <b>gửi/nhận dữ liệu cho
+nhau</b>. Project dùng 3 lệnh MPI chính:
+<ul>
+<li><code>MPI_Allreduce(..., MPI_MINLOC)</code>: mỗi rank gửi 1 giá trị (độ dài tour tốt nhất
+của nó), MPI tự tìm <b>giá trị nhỏ nhất trong TẤT CẢ rank</b> + <b>rank nào có giá trị đó</b>,
+rồi trả kết quả này về <i>cho mọi rank cùng lúc</i>.</li>
+<li><code>MPI_Bcast</code>: 1 rank (người chiến thắng) gửi dữ liệu (tour của nó) cho
+<b>tất cả</b> rank khác.</li>
+<li><code>MPI_Send</code> / <code>MPI_Recv</code>: gửi dữ liệu 1-1 giữa 2 rank cụ thể (dùng để
+gửi tour thắng cuộc về rank 0 in kết quả).</li>
+</ul>
+</div>
+
+<h2 id="migration">6. Cơ chế "di cư" (migration) — phần khó nhất, đọc kỹ</h2>
+<p>Mỗi <code>--sync N</code> thế hệ (mặc định 20), code trong <code>tsp_island.cpp</code> (dòng
+~230-258) làm 4 việc theo thứ tự:</p>
+
+<div class="step"><div class="num">1</div><div>
+<b>Tìm lời giải tốt nhất toàn cục</b>: <code>MPI_Allreduce(MINLOC)</code> — mỗi rank gửi độ dài
+tour tốt nhất CỦA RIÊNG NÓ, MPI trả về (giá trị nhỏ nhất, rank nào có nó) cho TẤT CẢ rank.</div></div>
+
+<div class="step"><div class="num">2</div><div>
+<b>Phát lời giải đó cho mọi đảo</b>: rank "thắng" <code>Bcast</code> tour của nó; mọi rank khác
+nhận được (biến <code>bcast_buf</code>).</div></div>
+
+<div class="step"><div class="num">3</div><div>
+<b>Di cư MỘT PHẦN (partial migration)</b> — đây là điểm thiết kế quan trọng nhất:
+mỗi đảo (trừ đảo thắng) <b>KHÔNG copy nguyên cả tour thắng vào quần thể của nó</b> (nếu làm vậy
+thì sau vài chu kỳ, tất cả 4 đảo sẽ giống nhau → mất hết lợi ích "khám phá đa hướng" của mô hình
+island). Thay vào đó, mỗi đảo dùng <b>chính kỹ thuật OX crossover</b> (mục 3) để lai
+<b>tour thắng cuộc với 1 cá thể ngẫu nhiên của riêng nó</b> → con lai có 1 đoạn ngẫu nhiên từ
+tour thắng + phần còn lại từ cá thể local → thay thế cá thể YẾU NHẤT hiện tại
+(<code>--migrants 3</code> lần như vậy mỗi chu kỳ).</div></div>
+
+<div class="diagram">  Tour thắng cuộc (từ đảo khác, qua Bcast):  [ ... đoạn tốt ... ]
+                                                      |
+                            OX crossover với 1 cá thể RANDOM của đảo này
+                                                      |
+                                                      v
+            Cá thể mới = [đoạn từ tour thắng] + [phần còn lại từ cá thể local]
+                                                      |
+                                    thay thế cá thể YẾU NHẤT trong quần thể local
+</div>
+
+<div class="box tip">
+<b>Tại sao làm phức tạp vậy, không copy thẳng tour thắng cho nhanh?</b> Vì copy thẳng = tất cả
+đảo nhanh chóng giống nhau (mất diversity) → cả 4 đảo cùng bị "kẹt" ở 1 local optimum, không
+khác gì 1 đảo. "Di cư một phần + cắt đoạn ngẫu nhiên + lai với cá thể local ngẫu nhiên" giúp
+<b>lan truyền các "đoạn route tốt"</b> sang đảo khác mà <b>mỗi đảo vẫn giữ được sự khác biệt</b>
+của riêng nó → tiếp tục khám phá hiệu quả. (Lịch sử project: ban đầu dùng ring-migration, sau đó
+đổi sang broadcast toàn cục, cuối cùng mới thêm "một phần" này.)
+</div>
+
+<div class="step"><div class="num">4</div><div>
+<b>Kiểm tra hội tụ</b>: nếu giá trị tốt nhất toàn cục không cải thiện gì so với lần sync trước
+→ tăng biến đếm <code>stall</code> (số thế hệ "đứng yên"). Xem mục 7.</div></div>
+
+<h2 id="convergence">7. Dừng sớm khi hội tụ (convergence stop)</h2>
+<p>Vì giá trị "tốt nhất toàn cục" (<code>out.val</code>) được tính ra <b>giống nhau trên mọi
+rank</b> ngay sau bước Allreduce ở trên, project tận dụng điều này để <b>cho cả cụm tự dừng
+cùng lúc</b> khi không còn cải thiện, mà <b>không cần thêm bất kỳ giao tiếp MPI nào nữa</b>:
+mỗi rank tự cộng biến <code>stall</code> của chính nó dựa trên giá trị đã giống nhau sẵn, khi
+<code>stall &gt;= --patience</code> thì tất cả rank cùng <code>break</code> khỏi vòng lặp ở
+<b>đúng thế hệ giống nhau</b> → không bị deadlock (1 rank dừng còn rank khác vẫn đợi Allreduce).
+<code>--patience 0</code> (mặc định) = tắt tính năng này, chạy hết số <code>--gens</code> được
+yêu cầu.</p>
+
+<h2 id="run">8. Cách chạy thử trên máy bạn</h2>
+<p>Build (1 lần):</p>
+<pre><code>cd cpp && make CXX=/opt/openmpi-5.0.9/bin/mpicxx</code></pre>
+<p>Chạy 4 đảo trên 1 máy (không cần cụm thật, MPI tự giả lập 4 process trên các lõi CPU):</p>
+<pre><code>mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_100.txt --gens 2000 --sync 30</code></pre>
+<table>
+<tr><th>Cờ (flag)</th><th>Ý nghĩa</th></tr>
+<tr><td><code>-np 4</code></td><td>số đảo (= số MPI process)</td></tr>
+<tr><td><code>--gens 2000</code></td><td>số thế hệ tối đa</td></tr>
+<tr><td><code>--sync 30</code></td><td>chu kỳ di cư (0 = không chia sẻ gì, baseline)</td></tr>
+<tr><td><code>--migrants 3</code></td><td>số cá thể bị thay khi nhận di cư mỗi chu kỳ</td></tr>
+<tr><td><code>--patience 200</code></td><td>dừng sớm nếu 200 thế hệ không cải thiện (0 = tắt)</td></tr>
+<tr><td><code>--pop 200</code></td><td>kích thước quần thể mỗi đảo</td></tr>
+<tr><td><code>--twoopt 50</code></td><td>polish cá thể tốt nhất bằng 2-opt mỗi 50 thế hệ</td></tr>
+<tr><td><code>--out path</code></td><td>lưu tour kết quả + lịch sử hội tụ ra file</td></tr>
+<tr><td><code>--live path</code></td><td>ghi log JSONL theo từng thế hệ để xem trực tiếp (mục 10)</td></tr>
+</table>
+
+<h2 id="cluster">9. Chạy thật trên cụm nhiều máy (MPI cluster)</h2>
+<p>Toàn bộ logic ở trên KHÔNG đổi gì khi chạy trên nhiều máy vật lý — MPI tự lo việc gửi/nhận
+qua mạng. Chỉ cần khai báo các máy trong 1 <b>hostfile</b> rồi gọi qua <code>mpirun --hostfile</code>:</p>
+<pre><code>bash cluster/run_cluster.sh cluster/hosts.demo4 4 ./cpp/tsp_island data/cities_100.txt --gens 30000 --sync 200</code></pre>
+<p>Chi tiết đầy đủ (build trên từng máy, SSH passwordless giữa các máy, các lỗi thường gặp khi
+mạng đổi IP...) xem file <span class="file">cluster/DEMO_COMMANDS.md</span> trong repo.</p>
+
+<h2 id="python">10. Vai trò của code Python (chỉ để xem, không phải thuật toán)</h2>
+<p>Python <b>không tính toán gì cho thuật toán</b> — nó chỉ gọi binary C++ rồi <b>đọc file kết
+quả để vẽ hình</b>:</p>
+<table>
+<tr><th>File</th><th>Vai trò</th></tr>
+<tr><td class="file">python/live_view.py</td><td>Xem trực tiếp các đảo đang tìm kiếm + biểu đồ
+hội tụ, đọc từ file <code>--live</code> (mỗi rank ghi 1 file JSONL riêng, mỗi dòng = 1 thế hệ).</td></tr>
+<tr><td class="file">python/visualize.py</td><td>Vẽ tour cuối cùng + đồ thị hội tụ từ file
+<code>--out</code> / <code>.history</code>.</td></tr>
+<tr><td class="file">python/experiments.py</td><td>Tự động chạy binary nhiều lần với cấu hình
+khác nhau (đổi N, đổi số process...) rồi vẽ biểu đồ speedup/granularity cho báo cáo.</td></tr>
+<tr><td class="file">python/benchmark.py</td><td>Đo speedup độc lập, fit theo định luật Amdahl.</td></tr>
+<tr><td class="file">python/validate_tour.py</td><td>Kiểm tra tour kết quả có hợp lệ không (không
+trùng/thiếu thành phố) + so với lời giải đúng (brute-force) ở N nhỏ.</td></tr>
+</table>
+
+<h2 id="glossary">11. Từ điển thuật ngữ nhanh</h2>
+<table>
+<tr><th>Thuật ngữ</th><th>Nghĩa trong project này</th></tr>
+<tr><td>Tour</td><td>1 cách sắp xếp thứ tự đi qua tất cả thành phố (1 lời giải khả thi)</td></tr>
+<tr><td>Population (quần thể)</td><td>danh sách nhiều Tour mà GA đang "tiến hoá" cùng lúc</td></tr>
+<tr><td>Generation (thế hệ)</td><td>1 vòng chọn lọc + lai ghép + đột biến trên cả quần thể</td></tr>
+<tr><td>Island (đảo)</td><td>1 quần thể độc lập = 1 MPI rank = 1 process (có thể trên máy khác nhau)</td></tr>
+<tr><td>Rank</td><td>số thứ tự (ID) của 1 process trong MPI, từ 0 đến (số process - 1)</td></tr>
+<tr><td>Sync (di cư)</td><td>thời điểm các đảo dừng evolve để chia sẻ lời giải tốt nhất với nhau</td></tr>
+<tr><td>Migration (di cư một phần)</td><td>cách 1 đảo "học" 1 phần lời giải tốt từ đảo khác mà không mất diversity</td></tr>
+<tr><td>Elitism</td><td>luôn giữ nguyên cá thể tốt nhất sang thế hệ sau, không cho mất đi</td></tr>
+<tr><td>Local search (2-opt/Or-opt)</td><td>tinh chỉnh nhỏ trên 1 tour để nó ngắn hơn, không phải GA</td></tr>
+<tr><td>Memetic Algorithm</td><td>GA + local search kết hợp (tên gọi chung cho cách làm này)</td></tr>
+<tr><td>Convergence (hội tụ)</td><td>trạng thái lời giải không còn cải thiện thêm được nữa</td></tr>
+<tr><td>Makespan</td><td>thời gian thực tế của lần chạy = thời gian của đảo CHẬM NHẤT</td></tr>
+<tr><td>Speedup</td><td>T(1 process) / T(N process) — chạy nhanh hơn bao nhiêu lần khi dùng nhiều process</td></tr>
+</table>
+
+<hr>
+<footer>File này được tạo để giải thích codebase <code>parallel-tsp</code> — đọc kèm code thật
+trong <code>cpp/ga_core.hpp</code>, <code>cpp/local_search.hpp</code>, <code>cpp/tsp_island.cpp</code>
+sẽ dễ hiểu hơn vì các comment trong code đã được tham chiếu trực tiếp ở đây.</footer>
+
+</div>
+</body>
+</html>

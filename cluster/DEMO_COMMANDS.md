@@ -139,6 +139,68 @@ MPLBACKEND=Agg python3 python/live_view.py run data/cities_100.txt --islands 4 -
 #   nohup <lệnh trên> > /tmp/gif.log 2>&1 &   rồi theo dõi: tail -f /tmp/gif.log
 ```
 
+### 4.6b Demo TÙY BIẾN số island/máy (N rank/máy, không hardcode) - launch từ node1, xem ở node2
+
+**Phát hiện quan trọng (đã test kỹ, không phải do gõ lệnh sai):** nếu máy LAUNCHER (máy gọi
+`mpirun`/`run_cluster.sh`) vừa điều phối vừa TỰ nhận rank tính toán, VÀ có bất kỳ máy khác nhận
+≥2 rank, job sẽ TREO VĨNH VIỄN (giới hạn thật của OpenMPI 5.0.9 + PRTE, không phải do code dự
+án). Cách né an toàn: chọn 1 máy làm LAUNCHER THUẦN (không tự tính toán), các máy còn lại nhận
+bao nhiêu rank cũng được.
+
+Dùng `cluster/make_hostfile.sh <rank/máy> <node...>` để sinh hostfile theo số lượng tùy ý
+(không cần viết tay file cố định cho từng số island):
+
+```bash
+# Trên node1 (launcher thuần - không tham gia compute):
+ssh node1
+cd ~/parallel-tsp
+export PATH=/opt/openmpi-5.0.9/bin:$PATH LD_LIBRARY_PATH=/opt/openmpi-5.0.9/lib
+
+# (1) chọn RANKS_PER_NODE và danh sách máy COMPUTE (không liệt kê node1 ở đây nếu node1 là launcher thuần)
+RANKS_PER_NODE=3                       # đổi số này theo ý muốn (1, 2, 3, ...)
+bash cluster/make_hostfile.sh "$RANKS_PER_NODE" node2 node3 node4 > /tmp/hosts_custom
+cat /tmp/hosts_custom                  # kiểm tra lại trước khi chạy
+
+# (2) kiểm tra node3 còn sống không (máy hay rớt wifi) trước khi chạy thật
+ping -c2 -W2 node3
+
+# (3) chạy job thật - np = RANKS_PER_NODE * số máy compute
+NP=$(wc -l < /tmp/hosts_custom)
+rm -f results/stream_custom.jsonl*
+bash cluster/run_cluster.sh /tmp/hosts_custom "$NP" ./cpp/tsp_island data/cities_100.txt \
+    --gens 30000 --sync 200 --live results/stream_custom.jsonl
+exit   # về lại node2 (launcher của session SSH, không phải MPI)
+```
+
+```bash
+# Trên node2 (nơi xem demo) - kéo file rank về rồi mở viewer:
+cd ~/parallel-tsp   # hoặc path repo thật trên máy bạn
+
+# Lưu ý: node1 SSH vào node2 bằng user khác (xem ~/.ssh/config trên node1, vd "mpiuser"),
+# nên rank chạy trên CHÍNH MÁY NÀY có thể nằm ở $HOME của user đó, không phải $HOME của bạn -
+# kiểm tra `ls /home/<user_đó>/parallel-tsp/results/` nếu rsync từ "node2:" không thấy file.
+
+NP=9   # = RANKS_PER_NODE * 3 máy (vd RANKS_PER_NODE=3 ở trên) - đổi theo số bạn chọn
+for ((r=0; r<NP; r++)); do
+  for n in node2 node3 node4; do :; done   # (chỉ để nhắc: rank thuộc máy nào theo make_hostfile.sh là tuần tự theo từng máy)
+done
+# Đơn giản nhất: rsync TẤT CẢ rank file từ cả 3 máy compute, file không tồn tại sẽ tự bị rsync báo lỗi và bỏ qua:
+for n in node2 node3 node4; do
+  for ((i=0; i<NP; i++)); do
+    rsync -az "$n:parallel-tsp/results/stream_custom.jsonl.rank$i" results/ 2>/dev/null
+  done
+done
+ls -la results/stream_custom.jsonl.rank*   # phải thấy đủ NP file
+
+# Mở viewer (islands = NP):
+export PATH=/opt/openmpi-5.0.9/bin:$PATH LD_LIBRARY_PATH=/opt/openmpi-5.0.9/lib
+python3 python/live_view.py tail results/stream_custom.jsonl data/cities_100.txt \
+    --islands "$NP" --sync 200 --step 100 --interval 50
+```
+
+Đổi `RANKS_PER_NODE` (ví dụ 1, 2, 3, 4...) và đổi `NP` tương ứng ở bước cuối là customize được
+số island theo ý - không cần sửa code, không cần file hostfile viết tay riêng cho từng số.
+
 ### 4.6a Demo THẬT trên ĐỦ 4 MÁY (node1+node2+node3+node4 - dùng khi node3 đã online)
 
 Giống 4.6 nhưng với cả 4 node, dùng hostfile `cluster/hosts.demo4` (1 rank/máy, rank0->node1,
