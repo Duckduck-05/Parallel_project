@@ -27,11 +27,17 @@ Two modes:
            # window 2 (note --islands must match the -np above):
            python3 live_view.py tail ../results/stream.jsonl ../data/cities_30.txt --islands 4
 
+The solver also writes a GREEDY (nearest-neighbor) baseline as the first stream line. The
+viewer shows it first (holds for --intro frames), keeps it as a grey dashed route in every
+panel + a dashed "greedy = X" reference line on the convergence chart, then animates the GA
+descending past it - i.e. "greedy gets X, ours beats it".
+
 Window layout (both modes):
   - Left grid : one small panel per island, its OWN current best route, redrawn each
-                generation (colored border per island, small square = start city).
-  - Right     : convergence graph - one faint line per island + the bold global-best
-                line, green vertical markers at each --sync generation.
+                generation (colored border per island, small square = start city); the grey
+                dashed loop is the greedy baseline.
+  - Right     : convergence graph - one faint line per island + the bold global-best line +
+                a dashed greedy reference line, green vertical markers at each --sync gen.
   - Title     : current generation, true global best, elapsed time, migration mode.
 
 Requires: matplotlib + numpy (NO mpi4py).
@@ -105,6 +111,7 @@ class MultiCanvas:
         ylim = (coords[:, 1].min() - pad, coords[:, 1].max() + pad)
 
         self.route_ax, self.route_ln, self.start_mk, self.route_title = [], [], [], []
+        self.greedy_ln = []                       # grey dashed nearest-neighbor baseline, per panel
         for i in range(n_islands):
             r, c = divmod(i, ncols)
             ax = self.fig.add_subplot(gs[r, c])
@@ -114,11 +121,14 @@ class MultiCanvas:
             for spine in ax.spines.values():
                 spine.set_edgecolor(color); spine.set_linewidth(2.2)
             ax.scatter(coords[:, 0], coords[:, 1], c="#888", s=10, zorder=3)
+            (gl,) = ax.plot([], [], "--", lw=1.0, color="#999", alpha=0.7, zorder=1)
             (ln,) = ax.plot([], [], "-", lw=1.4, color=color, zorder=2)
             (mk,) = ax.plot([], [], "s", ms=8, color=color, mec="black", mew=0.6, zorder=4)
             t = ax.set_title(f"island {i}", fontsize=9, color=color, fontweight="bold")
             self.route_ax.append(ax); self.route_ln.append(ln)
             self.start_mk.append(mk); self.route_title.append(t)
+            self.greedy_ln.append(gl)
+        self.ref_line = None                      # dashed greedy reference on the convergence chart
 
         self.ax_conv = self.fig.add_subplot(gs[:, ncols:])
         self.ax_conv.set_xlabel("Generation"); self.ax_conv.set_ylabel("Best tour length")
@@ -136,6 +146,24 @@ class MultiCanvas:
         self.route_ln[i].set_data(self.coords[loop, 0], self.coords[loop, 1])
         self.start_mk[i].set_data([self.coords[tour[0], 0]], [self.coords[tour[0], 1]])
         self.route_title[i].set_text(f"island {i}  |  {best_len:.1f}")
+
+    def show_greedy(self, tours, length):
+        """Draw the grey dashed nearest-neighbor baseline in every panel (stays visible the
+        whole run as a reference the GA route then beats), and title the panels accordingly."""
+        for i, tour in enumerate(tours):
+            if tour is None:
+                continue
+            loop = np.append(tour, tour[0])
+            self.greedy_ln[i].set_data(self.coords[loop, 0], self.coords[loop, 1])
+            self.route_title[i].set_text(f"island {i}  |  greedy {length:.1f}")
+
+    def set_ref(self, length):
+        """One-time dashed horizontal 'greedy = X' reference line on the convergence chart."""
+        if self.ref_line is None:
+            self.ref_line = self.ax_conv.axhline(length, ls="--", color="#555", lw=1.4,
+                                                 alpha=0.9, zorder=4,
+                                                 label=f"greedy = {length:.0f}")
+            self.ax_conv.legend(loc="upper right", fontsize=8, ncol=2)
 
     def draw_conv(self, island_hists, gbest_hist):
         xmax = max((len(h) for h in island_hists), default=1)
@@ -171,14 +199,17 @@ class MultiTailer:
     Optionally owns a subprocess (the C++ solver) that writes the streams."""
 
     def __init__(self, stream_base, coords, n_islands, title_mode, interval, step=5,
-                 sync=20, proc=None):
+                 sync=20, proc=None, intro=25):
         self.streams = [f"{stream_base}.rank{i}" for i in range(n_islands)]
         self.canvas = MultiCanvas(coords, n_islands, title_mode=title_mode, sync=sync)
         self.interval = interval
         self.step = max(1, step)
         self.proc = proc
         self.pos = [0] * n_islands
-        self.bufs = [[] for _ in range(n_islands)]   # one record list per island
+        self.bufs = [[] for _ in range(n_islands)]   # one record list per island (GA gens only)
+        self.baseline = [None] * n_islands           # the greedy "baseline" record per island
+        self._intro_left = max(0, intro)             # frames to hold on the greedy tour first
+        self._greedy_shown = False
         self.idx = 0
         self.t0 = time.perf_counter()
 
@@ -199,8 +230,31 @@ class MultiTailer:
         return out
 
     def _update(self, _frame):
+        # Ingest new records; route the greedy "baseline" line aside, GA gens into the buffers.
         for i in range(len(self.bufs)):
-            self.bufs[i].extend(self._read_new(i))
+            for rec in self._read_new(i):
+                if rec.get("baseline"):
+                    if self.baseline[i] is None:
+                        self.baseline[i] = rec
+                else:
+                    self.bufs[i].append(rec)
+
+        # INTRO: once every island's greedy baseline has arrived, draw it (+ the reference
+        # line) and hold on it for a few frames before the GA animation starts. Streams without
+        # a baseline line (older runs) skip this entirely and behave as before.
+        if all(b is not None for b in self.baseline):
+            glen = self.baseline[0]["best_len"]
+            if not self._greedy_shown:
+                self.canvas.set_ref(glen)
+                self.canvas.show_greedy(
+                    [np.asarray(b["tour"], dtype=int) for b in self.baseline], glen)
+                self._greedy_shown = True
+            if self._intro_left > 0:
+                self._intro_left -= 1
+                self.canvas.set_title(0, glen, time.perf_counter() - self.t0,
+                                      extra="| GREEDY baseline (nearest-neighbor)")
+                return
+
         min_len = min((len(b) for b in self.bufs), default=0)
         if min_len == 0:
             return                                  # at least one island hasn't written yet
@@ -257,7 +311,8 @@ def cmd_run(args):
     mode = f"{args.islands} islands, " + (
         f"sync every {args.sync} gens" if args.sync else "NO sharing")
     tailer = MultiTailer(stream, coords, args.islands, title_mode="run/C++",
-                         interval=args.interval, step=args.step, sync=args.sync, proc=proc)
+                         interval=args.interval, step=args.step, sync=args.sync,
+                         proc=proc, intro=args.intro)
     print(f"Streaming from {stream}.rank*  ({mode})  (close the window to stop)")
     tailer.run(save=args.save)
 
@@ -268,7 +323,8 @@ def cmd_run(args):
 def cmd_tail(args):
     coords = read_cities(args.cities)
     tailer = MultiTailer(args.stream, coords, args.islands, title_mode="tail/MPI",
-                         interval=args.interval, step=args.step, sync=args.sync)
+                         interval=args.interval, step=args.step, sync=args.sync,
+                         intro=args.intro)
     print(f"Tailing: {args.stream}.rank0..{args.islands - 1}  (Ctrl+C to quit)")
     tailer.run(save=args.save)
 
@@ -349,6 +405,7 @@ def main():
     r.add_argument("--seed", type=int, default=42)
     r.add_argument("--interval", type=int, default=60, help="ms between animation frames")
     r.add_argument("--step", type=int, default=5, help="generations advanced per frame (lower = slower replay)")
+    r.add_argument("--intro", type=int, default=25, help="frames to hold on the greedy baseline before the GA starts (0 = skip)")
     r.add_argument("--binary", default=None, help="path to the C++ solver (default: cpp/tsp_island)")
     r.add_argument("--save", default=None, help="save a video (mp4/gif) instead of showing")
     r.set_defaults(func=cmd_run)
@@ -360,6 +417,7 @@ def main():
     t.add_argument("--sync", type=int, default=20, help="sync interval (for the vertical markers)")
     t.add_argument("--interval", type=int, default=60, help="ms between animation frames")
     t.add_argument("--step", type=int, default=5, help="generations advanced per frame (lower = slower replay)")
+    t.add_argument("--intro", type=int, default=25, help="frames to hold on the greedy baseline before the GA starts (0 = skip)")
     t.add_argument("--save", default=None, help="save a video (rarely used in tail mode)")
     t.set_defaults(func=cmd_tail)
 

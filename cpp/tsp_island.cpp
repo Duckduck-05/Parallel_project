@@ -33,9 +33,10 @@
 #include <string>
 #include <vector>
 
-// Write one JSONL line for live_view.py to "tail" (rank 0 only). Adds no MPI traffic.
+// Write one JSONL line for live_view.py to "tail" (each rank writes its own file).
+// Adds no MPI traffic. `baseline` tags the greedy reference tour (gen 0, see below).
 static void write_live_line(std::ofstream& f, int gen, double best_len,
-                            const Tour& tour, bool done) {
+                            const Tour& tour, bool done, bool baseline = false) {
     f << "{\"gen\": " << gen << ", \"best_len\": " << best_len << ", \"tour\": [";
     for (size_t i = 0; i < tour.size(); i++) {
         if (i) f << ", ";
@@ -43,8 +44,32 @@ static void write_live_line(std::ofstream& f, int gen, double best_len,
     }
     f << "]";
     if (done) f << ", \"done\": true";
+    if (baseline) f << ", \"baseline\": true";
     f << "}\n";
     f.flush();   // line-buffered so the tailing viewer sees it immediately
+}
+
+// Nearest-neighbor greedy construction: start at city 0, always hop to the nearest
+// unvisited city. The classic TSP baseline that the GA is meant to beat. Emitted only as
+// a reference "baseline" line for the live viewer - it does NOT seed the GA population, so
+// it does not affect the search or the benchmark numbers.
+static Tour nearest_neighbor_tour(const std::vector<double>& D, int n) {
+    Tour t;
+    t.reserve(n);
+    std::vector<char> used(n, 0);
+    int cur = 0;
+    used[0] = 1;
+    t.push_back(0);
+    for (int step = 1; step < n; step++) {
+        int best = -1;
+        double bd = 1e30;
+        for (int j = 0; j < n; j++)
+            if (!used[j] && D[cur * n + j] < bd) { bd = D[cur * n + j]; best = j; }
+        used[best] = 1;
+        t.push_back(best);
+        cur = best;
+    }
+    return t;
 }
 
 int main(int argc, char** argv) {
@@ -140,7 +165,16 @@ int main(int argc, char** argv) {
     // writes only its OWN local best each generation - no extra MPI traffic, no effect
     // on the benchmark numbers.
     std::ofstream live_f;
-    if (!live_file.empty()) live_f.open(live_file + ".rank" + std::to_string(rank));
+    if (!live_file.empty()) {
+        live_f.open(live_file + ".rank" + std::to_string(rank));
+        // First line = the GREEDY (nearest-neighbor) baseline tour, so the viewer can show it
+        // first and draw it as a reference the GA then beats. Deterministic + identical on every
+        // rank (same coords), gen 0, tagged "baseline".
+        if (live_f.is_open()) {
+            Tour greedy = nearest_neighbor_tour(D, n);
+            write_live_line(live_f, 0, tour_length(greedy, D, n), greedy, false, true);
+        }
+    }
 
     std::vector<int> bcast_buf(n);
     double last_global = 1e30;     // best global length seen at the previous sync
