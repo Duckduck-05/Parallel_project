@@ -13,35 +13,40 @@ cpp/        C++ source: GA core, local search, MPI island solver, sequential bas
 python/     visualization & plotting only (no algorithm): live_view, visualize, benchmark, experiments
 data/       city coordinates + a small generator
 cluster/    install / ssh / sync scripts, hostfiles, and the MPI launchers
-results/    generated figures (PNG) and CSVs
-report/     report.docx + source archive
+results/    generated figures (PNG/GIF) and CSVs
+report/     report.docx / report.tex + figures
 ```
 
 ## Parallel design
 
-Each MPI process is an independent **island** running its own GA with its own seed, so the
-islands explore different regions of the search space in parallel. They share results
-periodically:
+Each MPI process is an independent **island** running its own GA (seed `base + rank*1000`), so
+the islands explore different regions of the search space in parallel. Two MPI collective
+patterns drive the parallelism:
 
-1. **Partial global-best migration (every `--sync` generations).** `MPI_Allreduce(MINLOC)`
+1. **Parallel greedy init (optional, `--greedy-init`).** Each island builds a nearest-neighbor
+   tour from a *different* random start city; `MPI_Allreduce(MINLOC)` picks the best of all `P`
+   attempts and its owner `MPI_Bcast`s it, so every island seeds from the best greedy across the
+   cluster. It runs *before* the timer, so it does not affect the benchmark - it only changes
+   the starting solution (greedy seed vs. random). Off by default = GA from scratch.
+2. **Partial global-best migration (every `--sync` generations).** `MPI_Allreduce(MINLOC)`
    finds the single best tour across all islands; its owner `MPI_Bcast`s it. Rather than
    cloning that whole tour into every island (which collapses diversity), each other island
    splices only a random contiguous **segment** of it into `--migrants` of its individuals via
    OX crossover (segment from the best, the rest from a random local individual). Good
    sub-routes spread, but random cut points + different local mates keep every island distinct
    so diversity is preserved.
-2. **Convergence stop.** Because the global best is identical on every rank at each sync, all
+3. **Convergence stop.** Because the global best is identical on every rank at each sync, all
    ranks can agree to **stop together** once it has not improved for `--patience` generations -
    no extra communication, no deadlock.
-3. **Baseline.** `--sync 0` disables sharing entirely (embarrassingly parallel; also disables
-   the early stop) - useful as the "no communication" comparison in the report.
+4. **Baseline.** `--sync 0` disables sharing entirely (embarrassingly parallel; also disables
+   the early stop) - the "no communication" comparison in the report.
 
 The final global best is gathered with `MPI_Allreduce(MINLOC)` and sent to rank 0.
 
 ## Setup - which environment, and when
 
 The solver is C++ + MPI, so it **builds and runs on Linux**. There are three setups; pick by
-what you are doing. Each lives in its own folder.
+what you are doing.
 
 | You want to...                         | Where                              | Setup files                          | Build / run with |
 |----------------------------------------|------------------------------------|--------------------------------------|------------------|
@@ -94,8 +99,7 @@ For the real multi-node experiments. This setup **builds on setup step 1**: the 
 not portable, so **every node must build `cpp/` itself** (`cd cpp && make`) after the code is
 synced - the launcher does not compile the remote nodes for you. Full requirements +
 step-by-step are in [Cluster (4 nodes, LAN)](#cluster-4-nodes-lan) below. On the nodes
-themselves (Ubuntu) this is **native Linux - no WSL**; WSL is only the Windows-dev stand-in
-for a Linux box.
+themselves (Ubuntu) this is **native Linux - no WSL**.
 
 ### 4. Visualization deps - Python (`requirements.txt`)
 
@@ -111,6 +115,9 @@ pip install -r requirements.txt
 # one machine, 4 islands, sharing every 20 generations
 mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20
 
+# seed the GA with the (parallel) greedy tour instead of random
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20 --greedy-init
+
 # stop early once the global best stalls for 200 generations
 mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 5000 --sync 20 --patience 200
 
@@ -124,8 +131,9 @@ bash cluster/run_local.sh 4 data/cities_50.txt --gens 500 --sync 20
 Key flags: `--gens`, `--pop`, `--sync` (migration interval, `0` = off), `--migrants`
 (individuals recombined with the global best per sync; default 3 - higher = more mixing,
 less diversity), `--patience` (stop after this many stalled generations, `0` = off),
-`--twoopt` (2-opt memetic period), `--seed`, `--auto-balance`,
-`--out tour.txt` (also writes `tour.txt.history`), `--stats file.csv`, `--live stream.jsonl`.
+`--twoopt` (2-opt memetic period), `--greedy-init` (seed with the parallel greedy tour vs.
+random), `--seed`, `--auto-balance`, `--out tour.txt` (also writes `tour.txt.history` +
+`tour.txt.rankN.history`), `--stats file.csv`, `--live stream.jsonl`.
 
 ## Cluster (4 nodes, LAN)
 
@@ -155,20 +163,16 @@ Clock sync, internet access, and identical hardware are *not* required.
 
 1. On every node, in order:
    - `bash cluster/00_build_openmpi.sh` - source-builds the **pinned** OpenMPI 5.0.9 into
-     `/opt/openmpi-5.0.9`. This is the deterministic step: it guarantees every node has the
-     *exact same* MPI runtime (apt versions differ across Ubuntu releases and cause PMIx
-     mismatches). Takes a few minutes; idempotent (skips if already built).
-   - `bash cluster/01_install.sh` - everything else (build tools, ssh, rsync, numpy +
-     matplotlib). It does **not** install OpenMPI - that is pinned by step above.
+     `/opt/openmpi-5.0.9` (guarantees the *exact same* MPI runtime everywhere; apt versions
+     differ across Ubuntu releases and cause PMIx mismatches). Idempotent.
+   - `bash cluster/01_install.sh` - build tools, ssh, rsync, numpy + matplotlib. Does **not**
+     install OpenMPI (pinned by the step above).
 2. Map node names to IPs: copy `cluster/hosts.sample`, replace the IPs with your real ones
-   (`hostname -I` on each box), and append the four lines to `/etc/hosts` on **every** node.
-   Changing the LAN/IPs later means editing only this mapping.
+   (`hostname -I` on each box), and append the lines to `/etc/hosts` on **every** node.
 3. Set up password-less ssh (`cluster/02_ssh_setup.sh`) and sync the code
    (`cluster/03_sync_code.sh`).
-4. **Build the solver on every node** - the binary is not portable, so on each node run
-   `cd cpp && make` (the syncing in step 3 copies source, not a working binary). Tip: the
-   launcher can do all nodes at once, e.g.
-   `mpirun --hostfile cluster/hosts -N 1 bash -c 'cd ~/parallel-tsp/cpp && make'`.
+4. **Build the solver on every node** - `cd cpp && make`. The launcher can do all nodes at
+   once: `mpirun --hostfile cluster/hosts -N 1 bash -c 'cd ~/parallel-tsp/cpp && make'`.
 5. Launch from node1:
 
 ```bash
@@ -176,7 +180,10 @@ bash cluster/run_cluster.sh cluster/hosts 4 ./cpp/tsp_island data/cities_50.txt 
 ```
 
 `run_cluster.sh` uses `--map-by seq --bind-to none` so heterogeneous nodes (different core
-counts) work, and pins the launch agent so all nodes use the same OpenMPI build.
+counts) work, and pins the launch agent so all nodes use the same OpenMPI build. Hostfile
+variants: `cluster/hosts` (4 nodes x 12 slots = 48 ranks), `cluster/hosts.seq48` (48 lines for
+`-np` > 4), `cluster/hosts.demo4` / `cluster/hosts.no3.demo4` (one rank per machine for the
+live demo, with/without node3). See `cluster/DEMO_COMMANDS.md` for copy-paste demo commands.
 
 ## Visualization & report figures (Python)
 
@@ -184,45 +191,66 @@ Needs the plotting deps from [Setup step 4](#4-visualization-deps---python-requi
 (`pip install -r requirements.txt`). All of these read files the C++ solver wrote, so they
 run anywhere - including native Windows Python.
 
-On Windows, double-click **`demo.bat`** for a one-click interactive demo: it builds + runs the
-C++ solver in WSL (streaming `--live`) and opens a native window that replays the search from
-generation 1 (messy tangle -> clean route). The viewer replays at `--step` generations per
-frame, so it works even though C++ converges in ~1 second.
+### Live view - islands searching in parallel
 
-### Parallelism demo - "islands race"
+Run the solver with `--live <base>` and **every** rank streams its own best tour each
+generation to `<base>.rankN` (no extra MPI traffic). The viewer draws one route panel per
+island + a shared convergence chart. The first stream line is the **greedy (nearest-neighbor)
+baseline**, drawn first and kept as a dashed reference the GA then beats.
 
-Each MPI rank is an independent island. Run the solver with `--out`, and **every** rank writes
-its own convergence history (`<prefix>.rankN.history`, no extra MPI communication). The viewer
-overlays them - one curve per island plus the bold **global best**, with green markers at each
-sync - so you watch the islands search in parallel and pull toward the shared best:
+Same 100-city data, two init modes - left: **GA from scratch** (random init, curve enters from
+the top); right: **`--greedy-init`** (GA seeded with the greedy tour, curve starts at the greedy
+line and drops below it, finishing lower):
 
-![Islands race](results/islands_race.gif)
-
-```bash
-# 4 islands, write per-rank histories, then watch the race:
-mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_500.txt --gens 2000 --sync 100 --out results/race
-python3 python/live_view.py race results/race --sync 100
-# or, on Windows, double-click demo_parallel.bat
-```
+| GA from scratch | GA greedy-seed (`--greedy-init`) |
+|-----------------|----------------------------------|
+| ![From scratch](results/live100.gif) | ![Greedy seed](results/live100_greedy.gif) |
 
 ```bash
-# Live demo (launches the C++ solver locally and animates it):
-python3 python/live_view.py run data/cities_30.txt --islands 4 --gens 400 --sync 20
+# launch the solver locally and animate it (greedy baseline -> 4 islands evolving):
+python3 python/live_view.py run data/cities_100.txt --islands 4 --gens 800 --sync 30
 
-# Live view of a REAL cluster run:
-#   window 1 (head node): mpirun --hostfile cluster/hosts -np 4 ./cpp/tsp_island \
-#                         data/cities_30.txt --gens 400 --sync 20 --live results/stream.jsonl
-#   window 2:             python3 python/live_view.py tail results/stream.jsonl data/cities_30.txt
+# seed the GA with the greedy tour first (curve starts at the greedy line, then drops):
+python3 python/live_view.py run data/cities_100.txt --islands 4 --gens 800 --sync 30 --greedy-init
 
-# Static figures from a finished run:
-mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_50.txt --gens 500 --sync 20 --out results/tour.txt
-python3 python/visualize.py route data/cities_50.txt results/tour.txt --out results/route.png
-python3 python/visualize.py converge results/tour.txt.history --out results/converge.png
-
-# Speedup / size / granularity experiments (drives the C++ binary, then plots):
-python3 python/experiments.py speedup --procs 1 2 4 8 --size 200
-bash cluster/run_report_experiments.sh            # all three at once
+# live view of a REAL cluster run (two terminals):
+#   window 1 (launcher): mpirun --hostfile cluster/hosts.demo4 -np 4 ./cpp/tsp_island \
+#                        data/cities_100.txt --gens 30000 --sync 200 --live results/stream.jsonl
+#   window 2:            python3 python/live_view.py tail results/stream.jsonl data/cities_100.txt --islands 4
 ```
+
+On Windows, double-click **`demo.bat`** (single-island demo) or **`demo_parallel.bat`** (islands
+race): the solver runs in WSL streaming `--live`, a native Python window replays the search.
+
+### Static figures from a finished run
+
+```bash
+mpirun --oversubscribe -np 4 ./cpp/tsp_island data/cities_200.txt --gens 3000 --sync 20 --twoopt 50 --out results/tour.txt
+python3 python/visualize.py route     data/cities_200.txt results/tour.txt --out results/route.png
+python3 python/visualize.py converge  results/tour.txt.history --out results/converge.png
+```
+
+### Report experiments (drive the C++ binary, then plot)
+
+Four experiments, each writing `results/exp_*.csv` + `results/exp_*.png`:
+
+```bash
+# 1. runtime vs N (with/without comm) -> pick N for a ~2-3 min run
+python3 python/experiments.py size    --procs 48 --sizes 1200 1800 2400 --gens 10500 --sync 20 --hostfile cluster/hosts.seq48
+
+# 2. granularity / load balance (per-process compute+comm+idle bars, warns if idle skew > 25%)
+python3 python/experiments.py gran    --procs 48 --size 2400 --gens 10500 --sync 20 --hostfile cluster/hosts.seq48
+
+# 3. speedup at 2*N, procs 1,2,4,...,48 (runtime with/without comm + speedup)
+python3 python/experiments.py speedup --procs 1 2 4 8 16 32 48 --size 4800 --gens 4000 --sync 20 --hostfile cluster/hosts.seq48
+
+# 4. solution quality: parallel greedy vs GA-from-scratch (20x gens) vs GA greedy-seed
+python3 python/experiments.py quality --procs 48 --size 1000 --gens 1000 --scratch-mult 20 --hostfile cluster/hosts.seq48
+
+bash cluster/run_report_experiments.sh    # the standard size+gran+speedup set
+```
+
+Drop `--hostfile` to run on a single machine (`mpirun --oversubscribe`).
 
 ## Tests
 
