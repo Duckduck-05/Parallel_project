@@ -354,6 +354,11 @@ as the first city. This gives the true optimum and allows the GA result to be
 checked against the exact solution. The repository includes validation logs for
 small and larger instances in \texttt{results/}.
 
+For large TSP instances, the GA is a heuristic method, so the validation does
+not prove global optimality. It confirms that the produced route is a valid TSP
+tour, that the reported length matches an independent recomputation, and that
+the solver can recover the exact optimum on the small brute-force test case.
+
 \subsection{Parallel Communication Check}
 The per-rank history files show that migration changes the behavior of non-owner
 islands after synchronization points. In one cluster run, rank 2 held the best
@@ -466,7 +471,9 @@ blocking MPI collectives.
 The speedup experiment uses a fixed total workload and varies the number of
 processes. Following the requirement, this experiment uses $2N^* = 4800$ cities
 with \texttt{gens=400}, \texttt{sync=20}, and a fixed total population of 480
-individuals split over the active ranks. The measured values are:
+individuals split over the active ranks. The cluster has 48 physical cores, so
+the final process count is 48; the next power-of-two value, 64, would exceed the
+available physical-core count. The measured values are:
 
 \begin{table}[H]
 \centering
@@ -556,18 +563,18 @@ mpirun --oversubscribe -np 4 ./cpp/tsp_island \
 
 # Cluster run
 bash cluster/run_cluster.sh cluster/hosts.seq48 48 \
-  ./cpp/tsp_island data/cities_400.txt \
-  --gens 400 --sync 20 --stats results/run.csv
+  ./cpp/tsp_island data/cities_2400.txt \
+  --gens 10500 --sync 20 --stats results/nstar_final_stats.csv
 
 # Required experiment figures
 python3 python/experiments.py size \
   --procs 48 --sizes 100 200 400 800 1200 2400
 
 python3 python/experiments.py gran \
-  --procs 48 --size 400
+  --procs 48 --size 2400
 
 python3 python/experiments.py speedup \
-  --procs 1 2 4 8 16 32 48 --size 400
+  --procs 1 2 4 8 16 32 48 --size 4800
 \end{lstlisting}
 
 \end{document}
