@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+# RULES
+
+Do not change settings for other nodes unless I command you to do so
+
 ## What this is
 
 University parallel-programming project: solve the TSP with an **island-model Genetic

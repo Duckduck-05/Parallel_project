@@ -21,5 +21,6 @@ results/_*.png
 results/*.rank*.history
 *.tmp
 
-# Local-only docs (kept on disk, never pushed)
+# Local-only docs and report (kept on disk, never pushed)
 docs/
+report/
