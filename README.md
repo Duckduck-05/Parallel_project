@@ -14,7 +14,6 @@ python/     visualization & plotting only (no algorithm): live_view, visualize, 
 data/       city coordinates + a small generator
 cluster/    install / ssh / sync scripts, hostfiles, and the MPI launchers
 results/    generated figures (PNG/GIF) and CSVs
-report/     report.docx / report.tex + figures
 ```
 
 ## Parallel design
@@ -90,8 +89,7 @@ See `cpp/BUILD.txt` for the manual one-off compile commands.
   ```
   (Note: WSL's `/tmp` is wiped between separate shell sessions - build and run in one shell.)
 - **Plotting on Windows** can run with native Python (e.g. Anaconda) instead of WSL - the GUI
-  window is more reliable than WSLg. `demo.bat` / `demo_parallel.bat` do exactly this: solver
-  in WSL, viewer in Windows Python.
+  window is more reliable than WSLg: run the solver in WSL, the viewer in Windows Python.
 
 ### 3. Cluster - 4 nodes (`cluster/`)
 
@@ -218,9 +216,6 @@ python3 python/live_view.py run data/cities_100.txt --islands 4 --gens 800 --syn
 #                        data/cities_100.txt --gens 30000 --sync 200 --live results/stream.jsonl
 #   window 2:            python3 python/live_view.py tail results/stream.jsonl data/cities_100.txt --islands 4
 ```
-
-On Windows, double-click **`demo.bat`** (single-island demo) or **`demo_parallel.bat`** (islands
-race): the solver runs in WSL streaming `--live`, a native Python window replays the search.
 
 ### Static figures from a finished run
 
