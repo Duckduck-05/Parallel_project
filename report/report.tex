@@ -435,38 +435,8 @@ MPI_Finalize()
 
 \section{Implementation and Instrumentation}
 
-\subsection{Command-Line Interface}
-The main solver accepts the following key arguments:
-
-\begin{itemize}[leftmargin=*]
-  \item \texttt{--gens}: maximum number of generations.
-  \item \texttt{--pop}: population size per island.
-  \item \texttt{--sync}: migration interval; \texttt{0} disables sharing.
-  \item \texttt{--migrants}: number of individuals recombined with the global
-  best per synchronization.
-  \item \texttt{--patience}: convergence-stop patience.
-  \item \texttt{--twoopt}: local-search period.
-  \item \texttt{--greedy-init}: seed one individual per island with the best
-  parallel nearest-neighbor tour.
-  \item \texttt{--out}: output tour and convergence history.
-  \item \texttt{--stats}: per-rank CSV statistics.
-  \item \texttt{--live}: per-rank JSONL streams for live visualization; the
-  first line stores the greedy baseline reference.
-\end{itemize}
-
-\subsection{Timing Metrics}
-The solver separates communication time from total elapsed time:
-
-\begin{itemize}[leftmargin=*]
-  \item \texttt{comm\_s}: time spent inside MPI communication calls.
-  \item \texttt{total\_s}: wall-clock elapsed time on a rank.
-  \item \texttt{compute\_s}: estimated as \texttt{total\_s - comm\_s}.
-  \item \texttt{makespan\_s}: maximum total time over all ranks.
-\end{itemize}
-
-These metrics are written to the \texttt{--stats} CSV file and used by
-\texttt{python/experiments.py} to draw the required result figures.
-
+\subsection{Command-Line Interface and Metrics}
+The solver's CLI configures GA parameters (\texttt{--gens}, \texttt{--pop}, \texttt{--patience}), MPI synchronization (\texttt{--sync}, \texttt{--migrants}), local search (\texttt{--twoopt}, \texttt{--greedy-init}), and data logging (\texttt{--out}, \texttt{--stats}, \texttt{--live}). Performance metrics recorded in the \texttt{--stats} CSV include communication time (\texttt{comm\_s}), total elapsed time (\texttt{total\_s}), estimated compute time (\texttt{compute\_s}), and the overall execution makespan (\texttt{makespan\_s}).
 \subsection{Cluster Environment}
 The cluster setup uses four machines and up to 48 MPI ranks. OpenMPI 5.0.9 is
 source-built and pinned at \texttt{/opt/openmpi-5.0.9} on all nodes to avoid
@@ -550,38 +520,7 @@ a valid closed TSP tour and that the best length decreases over the generations.
 \caption{Convergence history: best tour length over generations.}
 \end{figure}
 
-\subsection{Live Demo GIFs}
-The live viewer in \texttt{python/live\_view.py} reads one stream file per MPI
-rank and draws the island search in real time: route panels on the left and a
-shared convergence chart on the right. The first stream line is the
-nearest-neighbor greedy baseline; the later lines show how each island improves
-over generations and how synchronization points spread good routes.
 
-The repository stores two animated live-demo outputs for the same 100-city
-instance:
-
-\begin{table}[H]
-\centering
-\caption{Animated live-demo artifacts}
-\begin{tabular}{p{0.28\linewidth}p{0.56\linewidth}}
-\toprule
-Artifact & Meaning \\
-\midrule
-\href{../results/live100.gif}{\texttt{results/live100.gif}} &
-GA from scratch. The population starts from random tours; the greedy baseline
-is shown as a dashed reference before the GA improves the solution. \\
-\href{../results/live100_greedy.gif}{\texttt{results/live100\_greedy.gif}} &
-GA with \texttt{--greedy-init}. One individual starts from the best parallel
-nearest-neighbor tour, so the convergence curve starts near the greedy
-baseline and then improves below it. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The GIF files are linked rather than inserted with \texttt{\textbackslash
-includegraphics}, because standard static PDF builds do not reliably render
-animated GIFs. The links keep the animated artifacts available from the report
-without breaking LaTeX compilation.
 \newpage
 
 \section{Experimental Results}
