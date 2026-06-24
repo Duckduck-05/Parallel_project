@@ -1,0 +1,7 @@
+# Real 4-node demo hostfile: one rank per physical machine (node1, node2, node3, node4).
+# Used with --map-by seq, so rank0->node1, rank1->node2 (launcher), rank2->node3, rank3->node4.
+# Run:  bash cluster/run_cluster.sh cluster/hosts.demo4 4 ./cpp/tsp_island data/cities_100.txt --gens 30000 --sync 200 --live results/stream4node.jsonl
+node1
+node2
+node3
+node4

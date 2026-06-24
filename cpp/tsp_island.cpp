@@ -135,11 +135,12 @@ int main(int argc, char** argv) {
     // compute_time = total - comm_time => feeds the "with/without communication" charts.
     double comm_time = 0.0;
 
-    // --- LIVE: rank 0 opens a stream file so live_view.py can "tail" it in real time.
-    // It only writes rank 0's LOCAL best each generation, so it adds NO MPI traffic and
-    // does not distort the benchmark numbers.
+    // --- LIVE: EVERY rank opens its own stream file (<live_file>.rank<rank>) so
+    // live_view.py can show all islands searching in parallel, side by side. Each rank
+    // writes only its OWN local best each generation - no extra MPI traffic, no effect
+    // on the benchmark numbers.
     std::ofstream live_f;
-    if (!live_file.empty() && rank == 0) live_f.open(live_file);
+    if (!live_file.empty()) live_f.open(live_file + ".rank" + std::to_string(rank));
 
     std::vector<int> bcast_buf(n);
     double last_global = 1e30;     // best global length seen at the previous sync
@@ -240,8 +241,10 @@ int main(int argc, char** argv) {
     MPI_Gather(&pop_size, 1, MPI_INT, all_pop.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     if (live_f.is_open()) {
-        // final line = the true GLOBAL result (after gathering from the winning island)
-        write_live_line(live_f, gens_run, global_best, best_tour, true);
+        // final line = THIS rank's own local best (consistent with every other line in
+        // its stream, which are all local) - the true global best is the min across all
+        // ranks' streams, computed client-side by the viewer (same as the .history files).
+        write_live_line(live_f, gens_run, len[bi], pop[bi], true);
         live_f.close();
     }
 
