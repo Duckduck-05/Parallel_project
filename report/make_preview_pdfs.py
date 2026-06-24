@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import os
 import re
+import struct
 import textwrap
+import zlib
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -29,47 +31,164 @@ class SimplePDF:
         self.pages.append(lines)
 
     def save(self):
-        objects: list[bytes] = []
-        # 1 catalog, 2 pages, 3 font, then page/content pairs.
+        objects: dict[int, bytes] = {}
+        objects[1] = b""
+        objects[2] = b""
+        objects[3] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+        # 1 catalog, 2 pages, 3 font, then page/content pairs, then images.
         kids = []
+        next_obj = 4 + len(self.pages) * 2
         for i, page_lines in enumerate(self.pages):
             page_obj = 4 + i * 2
             content_obj = page_obj + 1
             kids.append(f"{page_obj} 0 R")
             stream_parts = []
-            for x, y, size, text, bold in page_lines:
-                font = "/F1"
-                stream_parts.append(
-                    f"BT {font} {size} Tf {x:.2f} {y:.2f} Td ({pdf_escape(text)}) Tj ET\n"
-                )
+            xobjects = []
+            image_index = 1
+            for item in page_lines:
+                if item and item[0] == "image":
+                    _, path, x, y, w, h = item
+                    try:
+                        iw, ih, rgb = read_png_rgb(path)
+                    except Exception as exc:
+                        stream_parts.append(
+                            f"BT /F1 10 Tf {x:.2f} {y:.2f} Td "
+                            f"({pdf_escape('[Could not load image: ' + str(exc))}) Tj ET\n"
+                        )
+                        continue
+                    im_name = f"Im{image_index}"
+                    image_index += 1
+                    im_obj = next_obj
+                    next_obj += 1
+                    comp = zlib.compress(rgb)
+                    objects[im_obj] = (
+                        f"<< /Type /XObject /Subtype /Image /Width {iw} /Height {ih} "
+                        f"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode "
+                        f"/Length {len(comp)} >>\nstream\n"
+                    ).encode("latin-1") + comp + b"\nendstream"
+                    xobjects.append(f"/{im_name} {im_obj} 0 R")
+                    stream_parts.append(f"q {w:.2f} 0 0 {h:.2f} {x:.2f} {y:.2f} cm /{im_name} Do Q\n")
+                else:
+                    x, y, size, text, bold = item
+                    stream_parts.append(
+                        f"BT /F1 {size} Tf {x:.2f} {y:.2f} Td ({pdf_escape(text)}) Tj ET\n"
+                    )
             stream = "".join(stream_parts).encode("latin-1", "replace")
+            xobj_res = ""
+            if xobjects:
+                xobj_res = " /XObject << " + " ".join(xobjects) + " >>"
             page = (
                 f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {self.page_w} {self.page_h}] "
-                f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_obj} 0 R >>"
+                f"/Resources << /Font << /F1 3 0 R >>{xobj_res} >> /Contents {content_obj} 0 R >>"
             ).encode()
             content = b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"endstream"
-            objects.extend([page, content])
+            objects[page_obj] = page
+            objects[content_obj] = content
 
-        objects.insert(0, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
-        objects.insert(0, f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(self.pages)} >>".encode())
-        objects.insert(0, b"<< /Type /Catalog /Pages 2 0 R >>")
+        objects[1] = b"<< /Type /Catalog /Pages 2 0 R >>"
+        objects[2] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(self.pages)} >>".encode()
 
         out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
         offsets = [0]
-        for idx, obj in enumerate(objects, start=1):
+        for idx in range(1, max(objects) + 1):
+            obj = objects[idx]
             offsets.append(len(out))
             out += f"{idx} 0 obj\n".encode() + obj + b"\nendobj\n"
         xref = len(out)
-        out += f"xref\n0 {len(objects) + 1}\n".encode()
+        out += f"xref\n0 {max(objects) + 1}\n".encode()
         out += b"0000000000 65535 f \n"
         for off in offsets[1:]:
             out += f"{off:010d} 00000 n \n".encode()
         out += (
-            f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"trailer << /Size {max(objects) + 1} /Root 1 0 R >>\n"
             f"startxref\n{xref}\n%%EOF\n"
         ).encode()
         with open(self.path, "wb") as f:
             f.write(out)
+
+
+def paeth(a: int, b: int, c: int) -> int:
+    p = a + b - c
+    pa = abs(p - a)
+    pb = abs(p - b)
+    pc = abs(p - c)
+    if pa <= pb and pa <= pc:
+        return a
+    if pb <= pc:
+        return b
+    return c
+
+
+def read_png_rgb(path: str) -> tuple[int, int, bytes]:
+    data = open(path, "rb").read()
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError(f"{path} is not a PNG")
+    pos = 8
+    width = height = bit_depth = color_type = None
+    idat = bytearray()
+    while pos < len(data):
+        length = struct.unpack(">I", data[pos:pos + 4])[0]
+        typ = data[pos + 4:pos + 8]
+        chunk = data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+        if typ == b"IHDR":
+            width, height, bit_depth, color_type, comp, filt, interlace = struct.unpack(">IIBBBBB", chunk)
+            if bit_depth != 8 or interlace != 0:
+                raise ValueError("only 8-bit non-interlaced PNGs are supported")
+        elif typ == b"IDAT":
+            idat.extend(chunk)
+        elif typ == b"IEND":
+            break
+    if width is None or color_type not in (0, 2, 6):
+        raise ValueError("unsupported PNG color type")
+    channels = {0: 1, 2: 3, 6: 4}[color_type]
+    bpp = channels
+    stride = width * channels
+    raw = zlib.decompress(bytes(idat))
+    rows = []
+    p = 0
+    prev = [0] * stride
+    for _ in range(height):
+        ftype = raw[p]
+        p += 1
+        cur = list(raw[p:p + stride])
+        p += stride
+        recon = [0] * stride
+        for i, val in enumerate(cur):
+            left = recon[i - bpp] if i >= bpp else 0
+            up = prev[i]
+            up_left = prev[i - bpp] if i >= bpp else 0
+            if ftype == 0:
+                x = val
+            elif ftype == 1:
+                x = val + left
+            elif ftype == 2:
+                x = val + up
+            elif ftype == 3:
+                x = val + ((left + up) // 2)
+            elif ftype == 4:
+                x = val + paeth(left, up, up_left)
+            else:
+                raise ValueError("unsupported PNG filter")
+            recon[i] = x & 255
+        rows.append(recon)
+        prev = recon
+    rgb = bytearray()
+    for row in rows:
+        if color_type == 0:
+            for g in row:
+                rgb.extend((g, g, g))
+        elif color_type == 2:
+            rgb.extend(row)
+        else:
+            for i in range(0, len(row), 4):
+                r, g, b, a = row[i:i + 4]
+                if a < 255:
+                    r = (r * a + 255 * (255 - a)) // 255
+                    g = (g * a + 255 * (255 - a)) // 255
+                    b = (b * a + 255 * (255 - a)) // 255
+                rgb.extend((r, g, b))
+    return width, height, bytes(rgb)
 
 
 def clean_tex(s: str) -> str:
@@ -194,6 +313,24 @@ def render_report():
     for text, size in report_lines(src):
         width = 55 if size <= 10 else 44
         for wrapped in textwrap.wrap(text, width=width) or [""]:
+            fig = re.match(r"\[Figure: (.+)\]", wrapped)
+            if fig:
+                img = os.path.join(ROOT, "figures", os.path.basename(fig.group(1)))
+                try:
+                    iw, ih, _ = read_png_rgb(img)
+                    max_w, max_h = 460, 260
+                    scale = min(max_w / iw, max_h / ih)
+                    dw, dh = iw * scale, ih * scale
+                    if y - dh < 50:
+                        pdf.add_page(page)
+                        page = []
+                        y = 800
+                    page.append(("image", img, (595 - dw) / 2, y - dh, dw, dh))
+                    y -= dh + 18
+                except Exception:
+                    page.append((55, y, size, wrapped, size >= 13))
+                    y -= size + 5
+                continue
             if y < 50:
                 pdf.add_page(page)
                 page = []
@@ -216,6 +353,24 @@ def render_slides():
         page = [(45, 490, 24, f"{idx}. {title}", True)]
         y = 440
         for text in body:
+            fig = re.match(r"\[Figure: (.+)\]", text)
+            if fig:
+                img = os.path.join(ROOT, "figures", os.path.basename(fig.group(1)))
+                try:
+                    iw, ih, _ = read_png_rgb(img)
+                    max_w, max_h = 760, 330
+                    if len(body) > 1:
+                        max_w, max_h = 420, 230
+                    scale = min(max_w / iw, max_h / ih)
+                    dw, dh = iw * scale, ih * scale
+                    if y - dh < 45:
+                        continue
+                    page.append(("image", img, (960 - dw) / 2, y - dh, dw, dh))
+                    y -= dh + 22
+                except Exception as exc:
+                    page.append((60, y, 15, f"[Could not load figure: {exc}]", False))
+                    y -= 24
+                continue
             for wrapped in textwrap.wrap(text, width=86) or [""]:
                 if y < 55:
                     page.append((45, y, 11, "[continued on source slide]", False))
