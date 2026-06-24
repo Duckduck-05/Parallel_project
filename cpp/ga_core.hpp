@@ -27,13 +27,17 @@ inline std::vector<std::pair<double,double>> read_cities(const std::string& path
 }
 
 // Flat NxN Euclidean distance matrix (access via D[i*n+j]).
-inline std::vector<double> distance_matrix(const std::vector<std::pair<double,double>>& c) {
+// round_int = TSPLIB EUC_2D metric: distances rounded to the nearest integer, so a tour
+// length is directly comparable to TSPLIB's published optima. Default off = real Euclidean.
+inline std::vector<double> distance_matrix(const std::vector<std::pair<double,double>>& c,
+                                           bool round_int = false) {
     int n = (int)c.size();
     std::vector<double> D(n * n);
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++) {
             double dx = c[i].first - c[j].first, dy = c[i].second - c[j].second;
-            D[i * n + j] = std::sqrt(dx * dx + dy * dy);
+            double d = std::sqrt(dx * dx + dy * dy);
+            D[i * n + j] = round_int ? std::round(d) : d;
         }
     return D;
 }

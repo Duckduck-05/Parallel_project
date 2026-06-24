@@ -199,6 +199,91 @@ def exp_quality(a):
     print(f"-> {csvp}\n-> {png}")
 
 
+# Known TSPLIB EUC_2D optimal tour lengths (integer metric) for the benchmark set.
+TSPLIB_OPTIMA = {
+    "eil51": 426, "st70": 675, "rd100": 7910, "lin105": 14379, "ch130": 6110,
+    "pr144": 58537, "ch150": 6528, "u159": 42080, "rat195": 2323, "kroA200": 29368,
+}
+
+
+def run_solver_stats(procs, cities, gens, pop, sync, hostfile, greedy, round_dist):
+    """Run once; read the --stats CSV. Returns (n_cities, gens_run, best_len, makespan_s)."""
+    if hostfile:
+        sync_data(cities, hostfile)
+    stats = tempfile.NamedTemporaryFile(suffix=".csv", delete=False).name
+    solver = [BIN, cities, "--gens", str(gens), "--pop", str(pop), "--sync", str(sync),
+              "--stats", stats]
+    if greedy:
+        solver.append("--greedy-init")
+    if round_dist:
+        solver.append("--round")
+    if hostfile:
+        cmd = ["bash", os.path.join("cluster", "run_cluster.sh"), hostfile, str(procs)] + solver
+    else:
+        cmd = ["mpirun", "--oversubscribe", "-np", str(procs)] + solver
+    subprocess.run(cmd, cwd=ROOT, check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if hostfile:
+        rank0_host = _hosts(hostfile)[0]
+        subprocess.run(["scp", "-q", f"{rank0_host}:{stats}", stats],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    rows = list(csv.DictReader(open(stats)))
+    os.remove(stats)
+    n = int(rows[0]["n_cities"])
+    gens_run = int(rows[0]["gens"])
+    best = min(float(r["best_len"]) for r in rows)
+    makespan = float(rows[0]["makespan_s"])
+    return n, gens_run, best, makespan
+
+
+# ---------------- Experiment 5: TSPLIB benchmark (vs known optima) ----------------
+def exp_tsplib(a):
+    """Run the solver (integer EUC_2D metric, --round) on standard TSPLIB instances in two
+    modes - GA greedy-seed (normal gens) and GA from scratch (scratch_mult x gens) - and compare
+    the best tour length to the published optimum. Writes results/exp_tsplib.csv (instance, n,
+    optimal, mode, gens, best_len, gap%, time) + a grouped gap% bar chart."""
+    os.makedirs(RESULTS, exist_ok=True)
+    insts = a.instances if a.instances else list(TSPLIB_OPTIMA)
+    scratch_gens = a.gens * a.scratch_mult
+    rows = []
+    print(f"procs={a.procs}, greedy gens={a.gens}, scratch gens={scratch_gens} (x{a.scratch_mult}), "
+          f"metric=integer EUC_2D")
+    for nm in insts:
+        cities = os.path.join("data", "tsplib", nm + ".txt")
+        opt = TSPLIB_OPTIMA.get(nm, 0)
+        n, g_gen, g_best, g_t = run_solver_stats(a.procs, cities, a.gens, a.pop, a.sync,
+                                                 a.hostfile, True, True)
+        n, s_gen, s_best, s_t = run_solver_stats(a.procs, cities, scratch_gens, a.pop, a.sync,
+                                                 a.hostfile, False, True)
+        def gap(b):
+            return (b - opt) / opt * 100 if opt else float("nan")
+        rows.append((nm, n, opt, "greedy", g_gen, g_best, gap(g_best), g_t))
+        rows.append((nm, n, opt, "scratch", s_gen, s_best, gap(s_best), s_t))
+        print(f"{nm:8s} n={n:4d} opt={opt:7d} | greedy {g_best:9.0f} ({gap(g_best):+5.2f}%, "
+              f"{g_t:6.1f}s) | scratch {s_best:9.0f} ({gap(s_best):+5.2f}%, {s_t:6.1f}s)")
+
+    csvp = os.path.join(RESULTS, "exp_tsplib.csv")
+    with open(csvp, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["instance", "n", "optimal", "mode", "gens", "best_len", "gap_pct", "time_s"])
+        for nm, n, opt, mode, gen, best, gp, t in rows:
+            w.writerow([nm, n, opt, mode, gen, f"{best:.0f}", f"{gp:.2f}", f"{t:.2f}"])
+
+    names = insts
+    greedy_gap = [next(r[6] for r in rows if r[0] == nm and r[3] == "greedy") for nm in names]
+    scratch_gap = [next(r[6] for r in rows if r[0] == nm and r[3] == "scratch") for nm in names]
+    x = np.arange(len(names)); width = 0.4
+    plt.figure(figsize=(12, 5))
+    plt.bar(x - width/2, scratch_gap, width, label=f"GA from scratch ({scratch_gens} gens)", color="#DD8452")
+    plt.bar(x + width/2, greedy_gap, width, label=f"GA greedy-seed ({a.gens} gens)", color="#4C72B0")
+    plt.axhline(0, color="#333", lw=0.8)
+    plt.xticks(x, names, rotation=30, ha="right")
+    plt.ylabel("Gap above optimum (%)"); plt.title(f"TSPLIB benchmark - gap vs optimum (procs={a.procs})")
+    plt.legend(); plt.grid(axis="y", alpha=0.3); plt.tight_layout()
+    png = os.path.join(RESULTS, "exp_tsplib.png"); plt.savefig(png, dpi=130)
+    print(f"-> {csvp}\n-> {png}")
+
+
 # ---------------- Experiment 1: runtime vs. size N ----------------
 def exp_size(a):
     os.makedirs(RESULTS, exist_ok=True)
@@ -291,13 +376,19 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("size", "gran", "speedup", "quality"):
+    for name in ("size", "gran", "speedup", "quality", "tsplib"):
         s = sub.add_parser(name)
         s.add_argument("--gens", type=int, default=400)
         s.add_argument("--pop", type=int, default=200)
         s.add_argument("--sync", type=int, default=20, help="global-best broadcast interval")
         s.add_argument("--hostfile", default=None, help="use the cluster launcher; empty = one machine")
-        if name == "size":
+        if name == "tsplib":
+            s.add_argument("--procs", type=int, default=48)
+            s.add_argument("--scratch-mult", type=int, default=10,
+                           help="GA-from-scratch runs this many x --gens (default 10)")
+            s.add_argument("--instances", nargs="*", default=None,
+                           help="subset of TSPLIB instances (default: all 10)")
+        elif name == "size":
             s.add_argument("--procs", type=int, default=4)
             s.add_argument("--sizes", type=int, nargs="+", default=[100, 200, 400, 800, 1600, 3200])
         elif name == "gran":
@@ -313,7 +404,8 @@ def main():
             s.add_argument("--size", type=int, default=200)
             s.add_argument("--total", type=int, default=480, help="total population (split across islands)")
     a = ap.parse_args()
-    {"size": exp_size, "gran": exp_gran, "speedup": exp_speedup, "quality": exp_quality}[a.cmd](a)
+    {"size": exp_size, "gran": exp_gran, "speedup": exp_speedup, "quality": exp_quality,
+     "tsplib": exp_tsplib}[a.cmd](a)
 
 
 if __name__ == "__main__":

@@ -84,6 +84,7 @@ int main(int argc, char** argv) {
     unsigned seed = 42;
     bool auto_balance = false;
     bool greedy_init = false;      // --greedy-init: seed the GA with the greedy tour (vs random)
+    bool round_dist = false;       // --round/--tsplib: integer (TSPLIB EUC_2D) distances
     std::string out_file, stats_file, live_file;
     for (int i = 2; i < argc; i++) {
         std::string a = argv[i];
@@ -100,11 +101,12 @@ int main(int argc, char** argv) {
         else if (a == "--live" && i + 1 < argc) live_file = argv[++i];
         else if (a == "--auto-balance") auto_balance = true;
         else if (a == "--greedy-init") greedy_init = true;
+        else if (a == "--round" || a == "--tsplib") round_dist = true;
     }
 
     auto coords = read_cities(path);
     int n = (int)coords.size();
-    auto D = distance_matrix(coords);
+    auto D = distance_matrix(coords, round_dist);
     // Each island gets a different seed -> searches a different region of the solution space.
     std::mt19937 rng(seed + rank * 1000);
 
